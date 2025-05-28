@@ -42,7 +42,7 @@ if (typeof window === 'undefined') {
     `);
 
     // Insert test data if tables are empty
-    const playerCount = db.prepare('SELECT COUNT(*) as count FROM players').get().count;
+    const playerCount = (db.prepare('SELECT COUNT(*) as count FROM players').get() as { count: number }).count;
     if (playerCount === 0) {
       const insertPlayer = db.prepare('INSERT INTO players (id, name) VALUES (?, ?)');
       const insertDeck = db.prepare(`

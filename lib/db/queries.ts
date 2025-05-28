@@ -25,7 +25,7 @@ export async function getAllPlayers(): Promise<Player[]> {
   const players = db.prepare('SELECT * FROM players').all() as { id: string; name: string }[];
   
   return players.map(player => {
-    const decks = db.prepare(`
+    const decks = db!.prepare(`
       SELECT 
         id,
         name,

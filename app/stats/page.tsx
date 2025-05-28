@@ -34,7 +34,7 @@ export default function StatsPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900">Statistics & Analytics</h1>
-          <p className="text-slate-600">Comprehensive overview of your EDH group's performance</p>
+          <p className="text-slate-600">Comprehensive overview of your EDH group&apos;s performance</p>
         </div>
 
         {/* Overview Stats */}

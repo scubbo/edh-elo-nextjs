@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -101,7 +100,7 @@ export default function NewGamePage() {
                 <div className="space-y-4">
                   {players.map((player) => (
                     <div key={player.id} className="space-y-2">
-                      <h3 className="font-medium text-slate-900">{player.name}'s Decks</h3>
+                      <h3 className="font-medium text-slate-900">{player.name}&apos;s Decks</h3>
                       <div className="grid grid-cols-2 gap-2">
                         {decks
                           .filter((deck) => deck.ownerId === player.id)
