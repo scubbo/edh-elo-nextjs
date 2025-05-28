@@ -1,4 +1,4 @@
-import db from './setup';
+import prisma from './client';
 
 export interface Player {
   id: string;
@@ -14,69 +14,51 @@ export interface Deck {
   wins: number;
   losses: number;
   gamesPlayed: number;
-  winRate: number;
+  winRate: number | null;
 }
 
 export async function getAllPlayers(): Promise<Player[]> {
-  if (!db) {
-    throw new Error('Database not initialized');
-  }
-
-  const players = db.prepare('SELECT * FROM players').all() as { id: string; name: string }[];
-  
-  return players.map(player => {
-    const decks = db!.prepare(`
-      SELECT 
-        id,
-        name,
-        owner_id as ownerId,
-        elo,
-        wins,
-        losses,
-        games_played as gamesPlayed,
-        ROUND((wins * 100.0 / games_played), 1) as winRate
-      FROM decks 
-      WHERE owner_id = ?
-    `).all(player.id) as Deck[];
-    
-    return {
-      ...player,
-      decks
-    };
+  const players = await prisma.player.findMany({
+    include: {
+      decks: {
+        select: {
+          id: true,
+          name: true,
+          ownerId: true,
+          elo: true,
+          wins: true,
+          losses: true,
+          gamesPlayed: true,
+          winRate: true,
+        },
+      },
+    },
   });
+
+  return players;
 }
 
 export async function addPlayer(name: string): Promise<Player> {
-  if (!db) {
-    throw new Error('Database not initialized');
-  }
-
   const id = Date.now().toString();
-  db.prepare('INSERT INTO players (id, name) VALUES (?, ?)').run(id, name);
-  
-  return {
-    id,
-    name,
-    decks: []
-  };
+  const player = await prisma.player.create({
+    data: {
+      id,
+      name,
+    },
+    include: {
+      decks: true,
+    },
+  });
+
+  return player;
 }
 
 export async function getAllDecks(): Promise<Deck[]> {
-  if (!db) {
-    throw new Error('Database not initialized');
-  }
+  const decks = await prisma.deck.findMany({
+    orderBy: {
+      elo: 'desc',
+    },
+  });
 
-  return db.prepare(`
-    SELECT 
-      id,
-      name,
-      owner_id as ownerId,
-      elo,
-      wins,
-      losses,
-      games_played as gamesPlayed,
-      ROUND((wins * 100.0 / games_played), 1) as winRate
-    FROM decks
-    ORDER BY elo DESC
-  `).all() as Deck[];
+  return decks;
 } 
