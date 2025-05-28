@@ -31,13 +31,13 @@ model Deck {
   @@index([ownerId])
 }
 
-model WinTypes {
+model WinType {
   id   Int    @id @default(autoincrement())
   name String
   games Game[] @relation("WinTypeGames")
 }
 
-model Formats {
+model Format {
   id   Int    @id @default(autoincrement())
   name String
   games Game[] @relation("FormatGames")
@@ -54,8 +54,8 @@ model Game {
   formatId          Int
   description       String
 
-  winType           WinTypes @relation("WinTypeGames", fields: [winTypeId], references: [id])
-  format            Formats  @relation("FormatGames", fields: [formatId], references: [id])
+  winType           WinType @relation("WinTypeGames", fields: [winTypeId], references: [id])
+  format            Format  @relation("FormatGames", fields: [formatId], references: [id])
   scores            EloScore[] @relation("GameScores")
 }
 
