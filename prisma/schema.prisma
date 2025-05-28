@@ -15,21 +15,43 @@ datasource db {
 }
 
 model Player {
-  id    String @id
+  id    Int    @id @default(autoincrement())
   name  String
   decks Deck[]
 }
 
 model Deck {
-  id          String  @id
+  id          Int    @id @default(autoincrement())
   name        String
-  owner       Player  @relation(fields: [ownerId], references: [id])
-  ownerId     String
-  elo         Int     @default(1500)
-  wins        Int     @default(0)
-  losses      Int     @default(0)
-  gamesPlayed Int     @default(0)
-  winRate     Float?
+  owner       Player @relation(fields: [ownerId], references: [id])
+  ownerId     Int
 
   @@index([ownerId])
+}
+
+model WinTypes {
+  id   Int    @id @default(autoincrement())
+  name String
+  games Game[] @relation("WinTypeGames")
+}
+
+model Formats {
+  id   Int    @id @default(autoincrement())
+  name String
+  games Game[] @relation("FormatGames")
+}
+
+model Game {
+  id                Int      @id @default(autoincrement())
+  date              DateTime
+  deckIds           Int[]
+  winningDeckIds    Int[]
+  numberOfTurns     Int
+  firstPlayerOutTurn Int
+  winTypeId         Int
+  formatId          Int
+  description       String
+
+  winType           WinTypes @relation("WinTypeGames", fields: [winTypeId], references: [id])
+  format            Formats  @relation("FormatGames", fields: [formatId], references: [id])
 }
