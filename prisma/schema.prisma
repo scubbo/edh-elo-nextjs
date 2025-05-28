@@ -26,6 +26,8 @@ model Deck {
   owner       Player @relation(fields: [ownerId], references: [id])
   ownerId     Int
 
+  scores EloScore[] @relation("DeckScores", fields: [])
+
   @@index([ownerId])
 }
 
@@ -54,4 +56,19 @@ model Game {
 
   winType           WinTypes @relation("WinTypeGames", fields: [winTypeId], references: [id])
   format            Formats  @relation("FormatGames", fields: [formatId], references: [id])
+  scores            EloScore[] @relation("GameScores")
+}
+
+model EloScore {
+  id      Int      @id @default(autoincrement())
+  date    DateTime
+  score   Int
+  deckId  Int
+  gameId  Int
+
+  deck    Deck     @relation("DeckScores", fields: [deckId], references: [id])
+  game    Game     @relation("GameScores", fields: [gameId], references: [id])
+
+  @@index([deckId])
+  @@index([gameId])
 }
