@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,95 +10,84 @@ import { Input } from "@/components/ui/input"
 import { Plus, Search, Trophy, Calendar } from "lucide-react"
 
 interface Game {
-  id: string
+  id: number
   date: string
-  winningDeckId: string
-  decks: {
-    deckId: string
-    playerId: string
+  deckIds: number[]
+  winningDeckIds: number[]
+  numberOfTurns: number
+  firstPlayerOutTurn: number
+  winType: {
+    id: number
+    name: string
+  }
+  format: {
+    id: number
+    name: string
+  }
+  description: string
+  scores: {
+    id: number
+    date: string
+    score: number
+    deck: {
+      id: number
+      name: string
+      owner: {
+        id: number
+        name: string
+      }
+    }
   }[]
-  duration: string
-  notes?: string
 }
 
 export default function GamesPage() {
-  const [games] = useState<Game[]>([
-    {
-      id: "47",
-      date: "2024-01-15",
-      winningDeckId: "1-1", // Meren of Clan Nel Toth
-      decks: [
-        { deckId: "1-1", playerId: "1" }, // Alice's Meren
-        { deckId: "2-1", playerId: "2" }, // Bob's Atraxa
-        { deckId: "3-1", playerId: "3" }, // Charlie's Muldrotha
-        { deckId: "4-1", playerId: "4" }, // Dave's Ur-Dragon
-      ],
-      duration: "2h 15m",
-      notes: "Epic game with multiple board wipes",
-    },
-    {
-      id: "46",
-      date: "2024-01-12",
-      winningDeckId: "2-1", // Atraxa, Praetors' Voice
-      decks: [
-        { deckId: "1-2", playerId: "1" }, // Alice's Krenko
-        { deckId: "2-1", playerId: "2" }, // Bob's Atraxa
-        { deckId: "3-1", playerId: "3" }, // Charlie's Muldrotha
-        { deckId: "4-1", playerId: "4" }, // Dave's Ur-Dragon
-      ],
-      duration: "1h 45m",
-      notes: "Bob's combo deck dominated",
-    },
-    {
-      id: "45",
-      date: "2024-01-10",
-      winningDeckId: "1-2", // Krenko, Mob Boss
-      decks: [
-        { deckId: "1-2", playerId: "1" }, // Alice's Krenko
-        { deckId: "2-2", playerId: "2" }, // Bob's Edgar
-        { deckId: "3-1", playerId: "3" }, // Charlie's Muldrotha
-        { deckId: "4-1", playerId: "4" }, // Dave's Ur-Dragon
-      ],
-      duration: "3h 20m",
-      notes: "Longest game of the month",
-    },
-  ])
-
+  const [games, setGames] = useState<Game[]>([])
   const [searchTerm, setSearchTerm] = useState("")
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Mock data for players and decks (in a real app, this would come from your state management)
-  const players = [
-    { id: "1", name: "Alice" },
-    { id: "2", name: "Bob" },
-    { id: "3", name: "Charlie" },
-    { id: "4", name: "Dave" },
-  ]
-
-  const decks = [
-    { id: "1-1", name: "Meren of Clan Nel Toth", ownerId: "1" },
-    { id: "1-2", name: "Krenko, Mob Boss", ownerId: "1" },
-    { id: "2-1", name: "Atraxa, Praetors' Voice", ownerId: "2" },
-    { id: "2-2", name: "Edgar Markov", ownerId: "2" },
-    { id: "3-1", name: "Muldrotha, the Gravetide", ownerId: "3" },
-    { id: "4-1", name: "The Ur-Dragon", ownerId: "4" },
-  ]
-
-  const filteredGames = games.filter(
-    (game) => {
-      const gameDecks = game.decks.map(d => decks.find(deck => deck.id === d.deckId))
-      const gamePlayers = game.decks.map(d => players.find(p => p.id === d.playerId))
-      const winningDeck = decks.find(d => d.id === game.winningDeckId)
-      const winningPlayer = players.find(p => p.id === winningDeck?.ownerId)
-
-      return (
-        winningDeck?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        winningPlayer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        gameDecks.some(deck => deck?.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        gamePlayers.some(player => player?.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        game.notes?.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const response = await fetch('/api/games')
+        if (!response.ok) {
+          throw new Error('Failed to fetch games')
+        }
+        const data = await response.json()
+        setGames(data)
+      } catch (error) {
+        console.error('Error fetching games:', error)
+      } finally {
+        setIsLoading(false)
+      }
     }
-  )
+
+    fetchGames()
+  }, [])
+
+  const filteredGames = games.filter((game) => {
+    const gameDecks = game.scores.map(score => score.deck)
+    const gamePlayers = game.scores.map(score => score.deck.owner)
+    const winningDecks = game.scores.filter(score => game.winningDeckIds.includes(score.deck.id))
+
+    return (
+      winningDecks.some(score => score.deck.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      winningDecks.some(score => score.deck.owner.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      gameDecks.some(deck => deck.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      gamePlayers.some(player => player.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      game.description.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  })
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading games...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -151,14 +140,15 @@ export default function GamesPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Winner</TableHead>
                   <TableHead>Decks</TableHead>
-                  <TableHead>Duration</TableHead>
+                  <TableHead>Format</TableHead>
+                  <TableHead>Win Type</TableHead>
+                  <TableHead>Turns</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredGames.map((game) => {
-                  const winningDeck = decks.find(d => d.id === game.winningDeckId)
-                  const winningPlayer = players.find(p => p.id === winningDeck?.ownerId)
+                  const winningScores = game.scores.filter(score => game.winningDeckIds.includes(score.deck.id))
                   return (
                     <TableRow key={game.id} className="hover:bg-slate-50">
                       <TableCell className="font-medium">#{game.id}</TableCell>
@@ -169,30 +159,32 @@ export default function GamesPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default" className="bg-amber-100 text-amber-800 border-amber-200">
-                          <Trophy className="h-3 w-3 mr-1" />
-                          {winningDeck?.name} ({winningPlayer?.name})
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {winningScores.map(score => (
+                            <Badge key={score.id} variant="default" className="bg-amber-100 text-amber-800 border-amber-200">
+                              <Trophy className="h-3 w-3 mr-1" />
+                              {score.deck.name} ({score.deck.owner.name})
+                            </Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {game.decks.map(({ deckId, playerId }) => {
-                            const deck = decks.find(d => d.id === deckId)
-                            const player = players.find(p => p.id === playerId)
-                            return (
-                              <Badge
-                                key={deckId}
-                                variant={deckId === game.winningDeckId ? "default" : "secondary"}
-                                className="text-xs"
-                              >
-                                {deck?.name} ({player?.name})
-                              </Badge>
-                            )
-                          })}
+                          {game.scores.map(score => (
+                            <Badge
+                              key={score.id}
+                              variant={game.winningDeckIds.includes(score.deck.id) ? "default" : "secondary"}
+                              className="text-xs"
+                            >
+                              {score.deck.name} ({score.deck.owner.name})
+                            </Badge>
+                          ))}
                         </div>
                       </TableCell>
-                      <TableCell className="text-slate-600">{game.duration}</TableCell>
-                      <TableCell className="text-slate-600 max-w-xs truncate">{game.notes || "No notes"}</TableCell>
+                      <TableCell>{game.format.name}</TableCell>
+                      <TableCell>{game.winType.name}</TableCell>
+                      <TableCell>{game.numberOfTurns}</TableCell>
+                      <TableCell className="text-slate-600 max-w-xs truncate">{game.description || "No notes"}</TableCell>
                     </TableRow>
                   )
                 })}
