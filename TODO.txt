@@ -1,0 +1,2 @@
+- [ ] I'm not happy with how the Migrations have been lumped-in with build. This seems to be necessary in order to get
+       Vercel's CI/CD to pick them up, but it means that I can't build-in-isolation locally. There must be a better way!
