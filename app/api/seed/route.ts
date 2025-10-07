@@ -216,9 +216,24 @@ function parseGameInfo(data: string[]): ParsedGameInfo | null {
     }
 
 
-    const date = new Date(data[0]);
+    // Parse date in MM/DD/YY format
+    const dateStr = data[0];
+    const dateParts = dateStr.split('/');
+    if (dateParts.length !== 3) {
+        console.warn(`Skipping row with invalid date format: ${dateStr}`);
+        return null;
+    }
+    
+    const month = parseInt(dateParts[0], 10) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[1], 10);
+    const year = parseInt(dateParts[2], 10);
+    
+    // Handle 2-digit years (assume 20xx for years < 50, 19xx for years >= 50)
+    const fullYear = year < 50 ? 2000 + year : 1900 + year;
+    
+    const date = new Date(fullYear, month, day);
     if (isNaN(date.getTime())) {
-        console.warn(`Skipping row with invalid date: ${data[0]}`);
+        console.warn(`Skipping row with invalid date: ${dateStr}`);
         return null;
     }
 
