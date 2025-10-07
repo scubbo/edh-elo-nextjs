@@ -169,7 +169,7 @@ export default function PlayerNetworkGraph({
 
   return (
     <div className="w-full relative">
-      <div className="w-full h-96 border rounded-lg bg-white">
+      <div className="w-full h-288 border rounded-lg bg-white">
         <div ref={networkRef} className="w-full h-full" />
       </div>
       
