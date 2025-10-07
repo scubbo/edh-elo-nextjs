@@ -318,4 +318,217 @@ export async function backCalculateAllEloScores(): Promise<void> {
   }
 
   console.log(`Completed ELO back-calculation for ${games.length} games`);
+}
+
+export async function getStatistics() {
+  // Get all games, players, and decks
+  const [games, players, decks] = await Promise.all([
+    prisma.game.findMany({
+      include: {
+        scores: {
+          include: {
+            deck: {
+              include: {
+                owner: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { date: 'desc' }
+    }),
+    prisma.player.findMany(),
+    prisma.deck.findMany({
+      include: {
+        owner: true,
+        scores: {
+          orderBy: { date: 'desc' },
+          take: 1
+        }
+      }
+    })
+  ]);
+
+  // Calculate overview statistics
+  const totalGames = games.length;
+  const totalPlayers = players.length;
+  const averageTurns = games.length > 0 
+    ? Math.round(games.reduce((sum, game) => sum + game.numberOfTurns, 0) / games.length * 10) / 10
+    : 0;
+  
+  // Find longest and shortest games by turn count
+  const longestGame = games.length > 0 
+    ? Math.max(...games.map(g => g.numberOfTurns))
+    : 0;
+  const shortestGame = games.length > 0 
+    ? Math.min(...games.map(g => g.numberOfTurns))
+    : 0;
+
+  // Calculate most active player (by game appearances)
+  const playerGameCounts = new Map<number, number>();
+  games.forEach(game => {
+    game.scores.forEach(score => {
+      const playerId = score.deck.owner.id;
+      playerGameCounts.set(playerId, (playerGameCounts.get(playerId) || 0) + 1);
+    });
+  });
+  
+  const mostActivePlayerId = Array.from(playerGameCounts.entries())
+    .sort(([,a], [,b]) => b - a)[0]?.[0];
+  const mostActivePlayer = mostActivePlayerId 
+    ? players.find(p => p.id === mostActivePlayerId)?.name || 'Unknown'
+    : 'None';
+
+  // Calculate player performance stats (aggregated from their decks)
+  const playerStats = players.map(player => {
+    const playerDecks = decks.filter(deck => deck.ownerId === player.id);
+    
+    // Calculate aggregated stats across all decks
+    const totalWins = playerDecks.reduce((sum, deck) => {
+      const deckGames = games.filter(game => game.deckIds.includes(deck.id));
+      return sum + deckGames.filter(game => game.winningDeckIds.includes(deck.id)).length;
+    }, 0);
+    
+    const totalGamesPlayed = playerDecks.reduce((sum, deck) => {
+      return sum + games.filter(game => game.deckIds.includes(deck.id)).length;
+    }, 0);
+    
+    const winRate = totalGamesPlayed > 0 ? (totalWins / totalGamesPlayed) * 100 : 0;
+    
+    // Average ELO across all decks
+    const averageElo = playerDecks.length > 0 
+      ? Math.round(playerDecks.reduce((sum, deck) => {
+          const currentElo = deck.scores[0]?.score ?? ELO_STARTING_SCORE;
+          return sum + currentElo;
+        }, 0) / playerDecks.length)
+      : ELO_STARTING_SCORE;
+
+    return {
+      name: player.name,
+      elo: averageElo,
+      wins: totalWins,
+      winRate: Math.round(winRate * 10) / 10,
+      gamesPlayed: totalGamesPlayed
+    };
+  }).sort((a, b) => b.elo - a.elo);
+
+  // Calculate recent trends
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+  const recentGames7 = games.filter(game => game.date >= sevenDaysAgo);
+  const recentGames30 = games.filter(game => game.date >= thirtyDaysAgo);
+  const recentGames90 = games.filter(game => game.date >= ninetyDaysAgo);
+
+  // Calculate most winning player in each period
+  const getMostWinningPlayer = (gameList: typeof games) => {
+    const playerWinCounts = new Map<number, number>();
+    gameList.forEach(game => {
+      game.scores.forEach(score => {
+        if (game.winningDeckIds.includes(score.deck.id)) {
+          const playerId = score.deck.owner.id;
+          playerWinCounts.set(playerId, (playerWinCounts.get(playerId) || 0) + 1);
+        }
+      });
+    });
+    
+    const mostWinningPlayerId = Array.from(playerWinCounts.entries())
+      .sort(([,a], [,b]) => b - a)[0]?.[0];
+    return mostWinningPlayerId 
+      ? players.find(p => p.id === mostWinningPlayerId)?.name || 'Unknown'
+      : 'None';
+  };
+
+  const recentTrends = [
+    { period: "Last 7 days", games: recentGames7.length, mostWins: getMostWinningPlayer(recentGames7) },
+    { period: "Last 30 days", games: recentGames30.length, mostWins: getMostWinningPlayer(recentGames30) },
+    { period: "Last 90 days", games: recentGames90.length, mostWins: getMostWinningPlayer(recentGames90) }
+  ];
+
+  // Calculate turn count distribution
+  const turnDistribution = {
+    under8: games.filter(g => g.numberOfTurns < 8).length,
+    between8and12: games.filter(g => g.numberOfTurns >= 8 && g.numberOfTurns < 12).length,
+    between12and16: games.filter(g => g.numberOfTurns >= 12 && g.numberOfTurns < 16).length,
+    over16: games.filter(g => g.numberOfTurns >= 16).length
+  };
+
+  // Calculate social dynamics - opponent analysis
+  const opponentCounts = new Map<string, number>();
+  const allPlayerPairs = new Set<string>();
+  
+  // Track all possible player pairs
+  players.forEach(player1 => {
+    players.forEach(player2 => {
+      if (player1.id !== player2.id) {
+        const pair = player1.id < player2.id 
+          ? `${player1.name} & ${player2.name}`
+          : `${player2.name} & ${player1.name}`;
+        allPlayerPairs.add(pair);
+      }
+    });
+  });
+
+  // Count actual games played together
+  games.forEach(game => {
+    // Get player IDs from deckIds by looking up deck owners
+    const gamePlayerIds = game.deckIds.map(deckId => {
+      const deck = decks.find(d => d.id === deckId);
+      return deck?.ownerId;
+    }).filter(Boolean) as number[];
+    
+    const uniquePlayerIds = [...new Set(gamePlayerIds)];
+    
+    // Count all pairs in this game
+    for (let i = 0; i < uniquePlayerIds.length; i++) {
+      for (let j = i + 1; j < uniquePlayerIds.length; j++) {
+        const player1 = players.find(p => p.id === uniquePlayerIds[i]);
+        const player2 = players.find(p => p.id === uniquePlayerIds[j]);
+        if (player1 && player2) {
+          const pair = player1.id < player2.id 
+            ? `${player1.name} & ${player2.name}`
+            : `${player2.name} & ${player1.name}`;
+          opponentCounts.set(pair, (opponentCounts.get(pair) || 0) + 1);
+        }
+      }
+    }
+  });
+
+  // Most frequent opponents (top 10)
+  const mostFrequentOpponents = Array.from(opponentCounts.entries())
+    .map(([pair, count]) => ({ pair, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  // All opponent pairs (for debugging/analysis)
+  const allOpponentPairs = Array.from(opponentCounts.entries())
+    .map(([pair, count]) => ({ pair, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Never-played pairings (players who have never been in the same game)
+  const neverPlayedPairings = Array.from(allPlayerPairs)
+    .filter(pair => !opponentCounts.has(pair))
+    .sort();
+
+  return {
+    overview: {
+      totalGames,
+      totalPlayers,
+      averageTurns,
+      mostActivePlayer,
+      longestGame,
+      shortestGame
+    },
+    playerStats,
+    recentTrends,
+    turnDistribution,
+    socialDynamics: {
+      mostFrequentOpponents,
+      neverPlayedPairings,
+      allOpponentPairs,
+      allPlayers: players.map(p => p.name).sort()
+    }
+  };
 } 

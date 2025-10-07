@@ -1,33 +1,111 @@
 "use client"
 
+import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { BarChart3, Trophy, TrendingUp, Users, Clock, Target } from "lucide-react"
+import { BarChart3, Trophy, TrendingUp, Users, Clock, Target, Loader2, Network } from "lucide-react"
+import PlayerNetworkGraph from "@/components/PlayerNetworkGraph"
+
+interface Statistics {
+  overview: {
+    totalGames: number;
+    totalPlayers: number;
+    averageTurns: number;
+    mostActivePlayer: string;
+    longestGame: number;
+    shortestGame: number;
+  };
+  playerStats: Array<{
+    name: string;
+    elo: number;
+    wins: number;
+    winRate: number;
+    gamesPlayed: number;
+  }>;
+  recentTrends: Array<{
+    period: string;
+    games: number;
+    mostWins: string;
+  }>;
+  turnDistribution: {
+    under8: number;
+    between8and12: number;
+    between12and16: number;
+    over16: number;
+  };
+  socialDynamics: {
+    mostFrequentOpponents: Array<{
+      pair: string;
+      count: number;
+    }>;
+    neverPlayedPairings: string[];
+    allOpponentPairs: Array<{
+      pair: string;
+      count: number;
+    }>;
+    allPlayers: string[];
+  };
+}
 
 export default function StatsPage() {
-  const stats = {
-    totalGames: 47,
-    totalPlayers: 5,
-    averageGameDuration: "2h 15m",
-    mostActivePlayer: "Alice",
-    longestGame: "3h 45m",
-    shortestGame: "45m",
+  const [stats, setStats] = useState<Statistics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/stats');
+        if (!response.ok) {
+          throw new Error('Failed to fetch statistics');
+        }
+        const data = await response.json();
+        setStats(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex items-center space-x-2">
+          <Loader2 className="h-6 w-6 animate-spin" />
+          <span>Loading statistics...</span>
+        </div>
+      </div>
+    );
   }
 
-  const playerStats = [
-    { name: "Charlie", elo: 1720, wins: 28, winRate: 70.0, trend: "up" },
-    { name: "Alice", elo: 1650, wins: 23, winRate: 57.5, trend: "up" },
-    { name: "Bob", elo: 1580, wins: 19, winRate: 47.5, trend: "down" },
-    { name: "Dave", elo: 1520, wins: 15, winRate: 37.5, trend: "down" },
-    { name: "Eve", elo: 1500, wins: 2, winRate: 40.0, trend: "neutral" },
-  ]
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">Error Loading Statistics</h2>
+          <p className="text-slate-600">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
-  const recentTrends = [
-    { period: "Last 7 days", games: 3, mostWins: "Charlie" },
-    { period: "Last 30 days", games: 12, mostWins: "Alice" },
-    { period: "Last 90 days", games: 35, mostWins: "Charlie" },
-  ]
+  if (!stats) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-slate-600 mb-2">No Data Available</h2>
+          <p className="text-slate-500">No statistics found in the database.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -39,82 +117,86 @@ export default function StatsPage() {
 
         {/* Overview Stats */}
         <div className="grid md:grid-cols-3 lg:grid-cols-6 gap-6 mb-8">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Trophy className="h-8 w-8 text-amber-600" />
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalGames}</p>
-                  <p className="text-sm text-slate-600">Total Games</p>
+          <Link href="/games">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 h-full flex items-center">
+                <div className="flex items-center space-x-2">
+                  <Trophy className="h-8 w-8 text-amber-600" />
+                  <div>
+                    <p className="text-2xl font-bold">{stats.overview.totalGames}</p>
+                    <p className="text-sm text-slate-600">Total Games</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Users className="h-8 w-8 text-blue-600" />
-                <div>
-                  <p className="text-2xl font-bold">{stats.totalPlayers}</p>
-                  <p className="text-sm text-slate-600">Active Players</p>
+          <Link href="/players">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+              <CardContent className="p-6 h-full flex items-center">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <p className="text-2xl font-bold">{stats.overview.totalPlayers}</p>
+                    <p className="text-sm text-slate-600">Active Players</p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex items-center">
               <div className="flex items-center space-x-2">
                 <Clock className="h-8 w-8 text-green-600" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.averageGameDuration}</p>
-                  <p className="text-sm text-slate-600">Avg Duration</p>
+                  <p className="text-2xl font-bold">{stats.overview.averageTurns}</p>
+                  <p className="text-sm text-slate-600">Avg Turns</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex items-center">
               <div className="flex items-center space-x-2">
                 <TrendingUp className="h-8 w-8 text-purple-600" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.mostActivePlayer}</p>
+                  <p className="text-2xl font-bold">{stats.overview.mostActivePlayer}</p>
                   <p className="text-sm text-slate-600">Most Active</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex items-center">
               <div className="flex items-center space-x-2">
                 <Target className="h-8 w-8 text-red-600" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.longestGame}</p>
-                  <p className="text-sm text-slate-600">Longest Game</p>
+                  <p className="text-2xl font-bold">{stats.overview.longestGame}</p>
+                  <p className="text-sm text-slate-600">Longest Game (turns)</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardContent className="p-6">
+          <Card className="h-full">
+            <CardContent className="p-6 h-full flex items-center">
               <div className="flex items-center space-x-2">
                 <BarChart3 className="h-8 w-8 text-orange-600" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.shortestGame}</p>
-                  <p className="text-sm text-slate-600">Shortest Game</p>
+                  <p className="text-2xl font-bold">{stats.overview.shortestGame}</p>
+                  <p className="text-sm text-slate-600">Shortest Game (turns)</p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-3 gap-8">
           {/* Player Performance */}
-          <Card>
+          <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
                 <Trophy className="h-5 w-5 text-amber-600" />
@@ -124,7 +206,7 @@ export default function StatsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {playerStats.map((player, index) => (
+                {stats.playerStats.map((player, index) => (
                   <div key={player.name} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -146,89 +228,100 @@ export default function StatsPage() {
             </CardContent>
           </Card>
 
-          {/* Recent Trends */}
+          {/* Right Column - Recent Trends and Turn Count Analysis */}
+          <div className="space-y-6">
+            {/* Recent Trends */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <TrendingUp className="h-5 w-5 text-green-600" />
+                  <span>Recent Trends</span>
+                </CardTitle>
+                <CardDescription>Performance over different time periods</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {stats.recentTrends.map((trend) => (
+                    <div key={trend.period} className="border-l-4 border-blue-500 pl-3">
+                      <h4 className="font-medium text-sm">{trend.period}</h4>
+                      <p className="text-xs text-slate-600">{trend.games} games played</p>
+                      <p className="text-xs">
+                        Most wins: <span className="font-medium text-green-600">{trend.mostWins}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Turn Count Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Turn Count Analysis</CardTitle>
+                <CardDescription>Distribution of game lengths by turn count</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Under 8 turns</span>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.under8 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
+                      <span className="text-xs text-slate-600">
+                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.under8 / stats.overview.totalGames) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">8-12 turns</span>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
+                      <span className="text-xs text-slate-600">
+                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">12-16 turns</span>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
+                      <span className="text-xs text-slate-600">
+                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm">Over 16 turns</span>
+                    <div className="flex items-center space-x-2">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.over16 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
+                      <span className="text-xs text-slate-600">
+                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.over16 / stats.overview.totalGames) * 100) : 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Social Dynamics - Player Network Graph */}
+        <div className="mt-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <TrendingUp className="h-5 w-5 text-green-600" />
-                <span>Recent Trends</span>
+                <Network className="h-5 w-5 text-blue-600" />
+                <span>Player Network</span>
               </CardTitle>
-              <CardDescription>Performance over different time periods</CardDescription>
+              <CardDescription>
+                Player connections: <span className="text-green-600 font-medium">thick green lines</span> = frequent opponents. 
+                Hover over nodes to see player names.
+              </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {recentTrends.map((trend) => (
-                  <div key={trend.period} className="border-l-4 border-blue-500 pl-4">
-                    <h4 className="font-medium">{trend.period}</h4>
-                    <p className="text-sm text-slate-600">{trend.games} games played</p>
-                    <p className="text-sm">
-                      Most wins: <span className="font-medium text-green-600">{trend.mostWins}</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Additional Stats */}
-        <div className="grid md:grid-cols-2 gap-8 mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Game Duration Analysis</CardTitle>
-              <CardDescription>Distribution of game lengths</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span>Under 1 hour</span>
-                  <div className="flex items-center space-x-2">
-                    <Progress value={15} className="w-24 h-2" />
-                    <span className="text-sm text-slate-600">15%</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>1-2 hours</span>
-                  <div className="flex items-center space-x-2">
-                    <Progress value={45} className="w-24 h-2" />
-                    <span className="text-sm text-slate-600">45%</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>2-3 hours</span>
-                  <div className="flex items-center space-x-2">
-                    <Progress value={30} className="w-24 h-2" />
-                    <span className="text-sm text-slate-600">30%</span>
-                  </div>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span>Over 3 hours</span>
-                  <div className="flex items-center space-x-2">
-                    <Progress value={10} className="w-24 h-2" />
-                    <span className="text-sm text-slate-600">10%</span>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Win Distribution</CardTitle>
-              <CardDescription>How evenly distributed are the wins?</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {playerStats.map((player) => (
-                  <div key={player.name} className="flex justify-between items-center">
-                    <span>{player.name}</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={(player.wins / 47) * 100} className="w-24 h-2" />
-                      <span className="text-sm text-slate-600">{((player.wins / 47) * 100).toFixed(1)}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <PlayerNetworkGraph
+                allOpponentPairs={stats.socialDynamics.allOpponentPairs}
+                allPlayers={stats.socialDynamics.allPlayers}
+              />
             </CardContent>
           </Card>
         </div>
