@@ -21,7 +21,7 @@ export type PlayerDeckNames = {
 export async function POST() {
     try {
         const data = await readGoogleSheet();
-        const parsedData = data.map(parseGameInfo);
+        const parsedData = data.map(parseGameInfo).filter(Boolean); // Filter out null values
         // await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
         await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
         return NextResponse.json({ parsedData });
@@ -194,18 +194,31 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
     console.log(`During seeding, created new game: ${newGame.id} for date ${newGame.date}, deckIds: ${newGame.deckIds.join(', ')}, winningDeckIds: ${newGame.winningDeckIds.join(', ')}, description: ${newGame.description}`)
 }
 
-function parseGameInfo(data: string[]): ParsedGameInfo {
+function parseGameInfo(data: string[]): ParsedGameInfo | null {
+    // Validate that we have the minimum required data
+    if (!data[0] || data.length < 20) {
+        console.warn(`Skipping row with insufficient data: ${JSON.stringify(data)}`);
+        return null;
+    }
+
+
+    const date = new Date(data[0]);
+    if (isNaN(date.getTime())) {
+        console.warn(`Skipping row with invalid date: ${data[0]}`);
+        return null;
+    }
+
     const partialResponse: Omit<ParsedGameInfo, 'winners'> = {
-        date: new Date(data[0]),
+        date: date,
         participants: [...Array(6).keys()].map(i => ({
             playerName: data[2*i + 1],
             deckName: data[2*(i+1)]
         })).filter(p => p.playerName !== '' && p.deckName !== ''),
-        numberOfTurns: Number.parseInt(data[15]),
-        firstPlayerOutTurn: Number.parseInt(data[16]),
-        winType: data[17],
-        format: data[18],
-        description: data[19],
+        numberOfTurns: Number.parseInt(data[15]) || 0,
+        firstPlayerOutTurn: Number.parseInt(data[16]) || 0,
+        winType: data[17] || 'Unknown',
+        format: data[18] || 'Unknown',
+        description: data[19] || 'No description',
     }
     
     partialResponse.participants.forEach(p => {
@@ -218,6 +231,13 @@ function parseGameInfo(data: string[]): ParsedGameInfo {
     });
 
     const winners: PlayerDeckNames[] = [];
+    
+    // Validate that we have the required data
+    if (!data[13] || !data[14]) {
+        console.warn(`Skipping row with missing winner data: ${JSON.stringify(data)}`);
+        return null; // Return null to skip this row
+    }
+    
     if (!(data[13].startsWith('Tie'))) {
         winners.push({
             playerName: data[13],
@@ -260,13 +280,42 @@ async function readGoogleSheet() {
     // Create sheets client
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Read the spreadsheet
-    const response = await sheets.spreadsheets.values.get({
+    // First, get the list of available sheets
+    const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId,
-      range: 'A1:Z', // Adjust range as needed
+    });
+    
+    const sheetNames = spreadsheet.data.sheets?.map(sheet => sheet.properties?.title).filter(Boolean) || [];
+    console.log('Available sheets:', sheetNames);
+
+    // Read from all available sheets
+    const sheetPromises = sheetNames.map(sheetName => 
+      sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!A1:Z`,
+      })
+    );
+
+    const responses = await Promise.all(sheetPromises);
+    
+    // Combine data from all sheets, skipping header rows after the first sheet
+    let combinedData: string[][] = [];
+    
+    responses.forEach((response, index) => {
+      const sheetData = response.data.values || [];
+      if (index === 0) {
+        // First sheet: include all data (including header)
+        combinedData = [...sheetData];
+      } else {
+        // Subsequent sheets: skip header row
+        if (sheetData.length > 1) {
+          combinedData = [...combinedData, ...sheetData.slice(1)];
+        }
+      }
     });
 
-    return response.data.values || [];
+    console.log(`Read data from ${sheetNames.length} sheets, total rows: ${combinedData.length}`);
+    return combinedData;
   } catch (error) {
     console.error('Error reading Google Sheet:', error);
     throw error;

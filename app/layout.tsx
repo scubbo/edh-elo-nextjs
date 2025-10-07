@@ -31,6 +31,9 @@ export default function RootLayout({
                 <Link href="/players" className="text-slate-600 hover:text-slate-900 transition-colors">
                   Players
                 </Link>
+                <Link href="/decks" className="text-slate-600 hover:text-slate-900 transition-colors">
+                  Decks
+                </Link>
                 <Link href="/games" className="text-slate-600 hover:text-slate-900 transition-colors">
                   Games
                 </Link>

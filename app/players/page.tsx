@@ -15,8 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Trophy, TrendingUp, TrendingDown } from "lucide-react"
+import { Plus } from "lucide-react"
 
 interface Deck {
   id: number;
@@ -41,7 +40,6 @@ interface Player {
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([])
-  const [sortedDecks, setSortedDecks] = useState<Deck[]>([])
   const [newPlayerName, setNewPlayerName] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -56,7 +54,6 @@ export default function PlayersPage() {
         }
 
         const decksData = await decksResponse.json();
-        setSortedDecks(decksData);
 
         // Group decks by owner to create players array
         const playersMap = new Map<number, Player>();
@@ -159,65 +156,6 @@ export default function PlayersPage() {
           </Dialog>
         </div>
 
-        {/* Deck Rankings */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Trophy className="h-5 w-5 text-amber-600" />
-              <span>Current Deck Rankings</span>
-            </CardTitle>
-            <CardDescription>Decks ranked by ELO rating</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16">Rank</TableHead>
-                  <TableHead>Deck</TableHead>
-                  <TableHead>Owner</TableHead>
-                  <TableHead>ELO</TableHead>
-                  <TableHead>Games</TableHead>
-                  <TableHead>Wins</TableHead>
-                  <TableHead>Losses</TableHead>
-                  <TableHead>Win Rate</TableHead>
-                  <TableHead>Trend</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedDecks.map((deck, index) => {
-                  const owner = players.find(p => p.id === deck.ownerId)
-                  return (
-                    <TableRow key={deck.id}>
-                      <TableCell className="font-medium">
-                        {index === 0 && <Trophy className="h-4 w-4 text-amber-500 inline mr-1" />}#{index + 1}
-                      </TableCell>
-                      <TableCell className="font-medium">{deck.name}</TableCell>
-                      <TableCell>{owner?.name}</TableCell>
-                      <TableCell>
-                        <Badge variant={deck.elo >= 1600 ? "default" : "secondary"}>{deck.elo}</Badge>
-                      </TableCell>
-                      <TableCell>{deck.gamesPlayed}</TableCell>
-                      <TableCell className="text-green-600">{deck.wins}</TableCell>
-                      <TableCell className="text-red-600">{deck.losses}</TableCell>
-                      <TableCell>
-                        <span className={deck.winRate >= 50 ? "text-green-600" : "text-red-600"}>
-                          {deck.winRate.toFixed(1)}%
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {deck.winRate >= 50 ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
 
         {/* Player Stats Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
