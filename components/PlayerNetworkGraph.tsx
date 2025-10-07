@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Network } from 'vis-network'
 
 interface PlayerNetworkGraphProps {
@@ -17,6 +17,12 @@ export default function PlayerNetworkGraph({
 }: PlayerNetworkGraphProps) {
   const networkRef = useRef<HTMLDivElement>(null)
   const networkInstance = useRef<Network | null>(null)
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; text: string }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    text: ''
+  })
 
   useEffect(() => {
     if (!networkRef.current) return
@@ -123,6 +129,26 @@ export default function PlayerNetworkGraph({
     // Create new network
     networkInstance.current = new Network(networkRef.current, data, options)
 
+    // Add custom hover event handlers
+    networkInstance.current.on('hoverNode', (params) => {
+      const nodeId = params.node
+      const playerName = allPlayers.find(player => player === nodeId)
+      if (playerName && networkRef.current) {
+        const rect = networkRef.current.getBoundingClientRect()
+        // Convert viewport coordinates to container-relative coordinates
+        setTooltip({
+          visible: true,
+          x: (params.event.clientX || 0) - rect.left,
+          y: (params.event.clientY || 0) - rect.top - 20,
+          text: playerName
+        })
+      }
+    })
+
+    networkInstance.current.on('blurNode', () => {
+      setTooltip(prev => ({ ...prev, visible: false }))
+    })
+
     // Cleanup on unmount
     return () => {
       if (networkInstance.current) {
@@ -140,10 +166,24 @@ export default function PlayerNetworkGraph({
   ]
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <div className="w-full h-96 border rounded-lg bg-white">
         <div ref={networkRef} className="w-full h-full" />
       </div>
+      
+      {/* Custom Tooltip */}
+      {tooltip.visible && (
+        <div
+          className="absolute z-50 px-2 py-1 bg-gray-900 text-white text-sm rounded shadow-lg pointer-events-none"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            transform: 'translateX(-50%)'
+          }}
+        >
+          {tooltip.text}
+        </div>
+      )}
       
       {/* Legend */}
       <div className="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
