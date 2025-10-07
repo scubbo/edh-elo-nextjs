@@ -16,7 +16,7 @@ datasource db {
 
 model Player {
   id    Int    @id @default(autoincrement())
-  name  String
+  name  String @unique
   decks Deck[]
 }
 
@@ -28,6 +28,7 @@ model Deck {
 
   scores EloScore[] @relation("DeckScores", fields: [])
 
+  @@unique([name, ownerId])
   @@index([ownerId])
 }
 

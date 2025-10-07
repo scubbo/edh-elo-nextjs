@@ -23,12 +23,12 @@ export async function POST() {
         const data = await readGoogleSheet();
         const parsedData = data.map(parseGameInfo);
         // await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
-        await Promise.all(parsedData.slice(1).slice(0, 2).map(processParsedGameInfo));
+        await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
         return NextResponse.json({ parsedData });
     } catch (error) {
-        console.error(error);
+        console.error('Seeding error:', error);
         return NextResponse.json(
-        { error: 'Failed to read Google Sheet' },
+        { error: `Seeding failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
         { status: 500 }
         );
     }
@@ -46,16 +46,34 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
             }
         })
         if (!existingPlayer) {
-            existingPlayer = await prisma.player.create({
-                data: {
-                    name: participant.playerName
-                },
-                select: {
-                    id: true,
-                    name: true  
+            try {
+                existingPlayer = await prisma.player.create({
+                    data: {
+                        name: participant.playerName
+                    },
+                    select: {
+                        id: true,
+                        name: true  
+                    }
+                })
+                console.log(`During seeding, created new player: ${existingPlayer.name} (id: ${existingPlayer.id})`)
+            } catch (error: any) {
+                // If player already exists (race condition), find it
+                if (error.code === 'P2002') {
+                    existingPlayer = await prisma.player.findFirst({
+                        where: {
+                            name: participant.playerName
+                        },
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    })
+                    console.log(`During seeding, found existing player after race condition: ${existingPlayer?.name} (id: ${existingPlayer?.id})`)
+                } else {
+                    throw error
                 }
-            })
-            console.log(`During seeding, created new player: ${existingPlayer.name} (id: ${existingPlayer.id})`)
+            }
         }
 
         let existingDeck = await prisma.deck.findFirst({
@@ -69,17 +87,36 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
             }
         })
         if (!existingDeck) {
-            existingDeck = await prisma.deck.create({
-                data: {
-                    name: participant.deckName,
-                    ownerId: existingPlayer.id
-                },
-                select: {
-                    id: true,
-                    name: true
+            try {
+                existingDeck = await prisma.deck.create({
+                    data: {
+                        name: participant.deckName,
+                        ownerId: existingPlayer.id
+                    },
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                })
+                console.log(`During seeding, created new deck: ${existingDeck.name} (id: ${existingDeck.id})`)
+            } catch (error: any) {
+                // If deck already exists (race condition), find it
+                if (error.code === 'P2002') {
+                    existingDeck = await prisma.deck.findFirst({
+                        where: {
+                            name: participant.deckName,
+                            ownerId: existingPlayer.id
+                        },
+                        select: {
+                            id: true,
+                            name: true
+                        }
+                    })
+                    console.log(`During seeding, found existing deck after race condition: ${existingDeck?.name} (id: ${existingDeck?.id})`)
+                } else {
+                    throw error
                 }
-            })
-            console.log(`During seeding, created new deck: ${existingDeck.name} (id: ${existingDeck.id})`)
+            }
         }
         return {
             playerId: existingPlayer.id,
@@ -111,21 +148,35 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
         return;
     }
 
-    const winType = await prisma.winType.findFirst({
+    let winType = await prisma.winType.findFirst({
         where: {
-            name: parsedGameInfo.winType
+            name: {
+                equals: parsedGameInfo.winType,
+                mode: 'insensitive'
+            }
         }
     })
     if (!winType) {
-        throw new Error(`Win type ${parsedGameInfo.winType} not found`);
+        // Create the missing win type
+        winType = await prisma.winType.create({
+            data: { name: parsedGameInfo.winType }
+        });
+        console.log(`Created missing win type: ${parsedGameInfo.winType}`);
     }
-    const format = await prisma.format.findFirst({
+    let format = await prisma.format.findFirst({
         where: {
-            name: parsedGameInfo.format
+            name: {
+                equals: parsedGameInfo.format,
+                mode: 'insensitive'
+            }
         }
     })
     if (!format) {
-        throw new Error(`Format ${parsedGameInfo.format} not found`);
+        // Create the missing format
+        format = await prisma.format.create({
+            data: { name: parsedGameInfo.format }
+        });
+        console.log(`Created missing format: ${parsedGameInfo.format}`);
     }
 
     const newGame = await prisma.game.create({
@@ -137,7 +188,7 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
             firstPlayerOutTurn: parsedGameInfo.firstPlayerOutTurn,
             winTypeId: winType.id,
             formatId: format.id,
-            description: parsedGameInfo.description
+            description: parsedGameInfo.description || 'No description'
         }
     })
     console.log(`During seeding, created new game: ${newGame.id} for date ${newGame.date}, deckIds: ${newGame.deckIds.join(', ')}, winningDeckIds: ${newGame.winningDeckIds.join(', ')}, description: ${newGame.description}`)

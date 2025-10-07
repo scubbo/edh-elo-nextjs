@@ -19,18 +19,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Trophy, TrendingUp, TrendingDown } from "lucide-react"
 
 interface Deck {
-  id: string;
+  id: number;
   name: string;
-  ownerId: string;
+  ownerId: number;
   elo: number;
   wins: number;
   losses: number;
   gamesPlayed: number;
   winRate: number;
+  owner: {
+    id: number;
+    name: string;
+  };
 }
 
 interface Player {
-  id: string;
+  id: number;
   name: string;
   decks: Deck[];
 }
@@ -45,22 +49,29 @@ export default function PlayersPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [playersResponse, decksResponse] = await Promise.all([
-          fetch('/api/players'),
-          fetch('/api/decks')
-        ]);
+        const decksResponse = await fetch('/api/decks');
         
-        if (!playersResponse.ok || !decksResponse.ok) {
+        if (!decksResponse.ok) {
           throw new Error('Failed to fetch data');
         }
 
-        const [playersData, decksData] = await Promise.all([
-          playersResponse.json(),
-          decksResponse.json()
-        ]);
-
-        setPlayers(playersData);
+        const decksData = await decksResponse.json();
         setSortedDecks(decksData);
+
+        // Group decks by owner to create players array
+        const playersMap = new Map<number, Player>();
+        decksData.forEach((deck: Deck) => {
+          if (!playersMap.has(deck.owner.id)) {
+            playersMap.set(deck.owner.id, {
+              id: deck.owner.id,
+              name: deck.owner.name,
+              decks: []
+            });
+          }
+          playersMap.get(deck.owner.id)!.decks.push(deck);
+        });
+
+        setPlayers(Array.from(playersMap.values()));
       } catch (error) {
         console.error('Error loading data:', error);
       } finally {

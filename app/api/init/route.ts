@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
+import { backCalculateAllEloScores } from '@/lib/db/queries';
 
-export async function GET() {
+export async function POST() {
   try {
-    // The database is automatically initialized when imported
-    return NextResponse.json({ status: 'Database initialized successfully' });
+    console.log('Starting ELO back-calculation...');
+    await backCalculateAllEloScores();
+    
+    return NextResponse.json({ 
+      message: 'ELO scores back-calculated successfully',
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
-    console.error('Error initializing database:', error);
+    console.error('Error back-calculating ELO scores:', error);
     return NextResponse.json(
-      { error: 'Failed to initialize database' },
+      { error: 'Failed to back-calculate ELO scores' },
       { status: 500 }
     );
   }
-} 
+}
