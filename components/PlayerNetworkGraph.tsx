@@ -99,8 +99,10 @@ export default function PlayerNetworkGraph({
       },
       edges: {
         smooth: {
+          enabled: true,
           type: 'continuous',
-          forceDirection: 'none'
+          forceDirection: 'none',
+          roundness: 0.2
         }
       },
       physics: {
