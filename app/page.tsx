@@ -1,12 +1,11 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Trophy, Users, BarChart3, Plus, TrendingUp } from "lucide-react"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 grid grid-rows-[1fr_auto]">
       {/* Header */}
       {/* <header className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
@@ -36,8 +35,10 @@ export default function HomePage() {
         </div>
       </header> */}
 
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-16">
+      {/* Main Content */}
+      <div>
+        {/* Hero Section */}
+        <section className="container mx-auto px-4 py-16">
         <div className="text-center max-w-3xl mx-auto">
           <h2 className="text-4xl font-bold text-slate-900 mb-6">Track Your Commander Games</h2>
           <p className="text-xl text-slate-600 mb-8">
@@ -122,53 +123,7 @@ export default function HomePage() {
           </Card>
         </div>
       </section>
-
-      {/* Recent Activity */}
-      <section className="container mx-auto px-4 py-16">
-        <div className="max-w-4xl mx-auto">
-          <h3 className="text-2xl font-bold text-slate-900 mb-8">Recent Activity</h3>
-          <div className="space-y-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold">Game #47</h4>
-                    <p className="text-slate-600">Alice defeated Bob, Charlie, and Dave</p>
-                    <p className="text-sm text-slate-500">2 hours ago</p>
-                  </div>
-                  <Badge variant="secondary">Completed</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold">New Player Added</h4>
-                    <p className="text-slate-600">Eve joined the group</p>
-                    <p className="text-sm text-slate-500">1 day ago</p>
-                  </div>
-                  <Badge variant="outline">Player</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-semibold">Game #46</h4>
-                    <p className="text-slate-600">Charlie won against Alice, Bob, and Dave</p>
-                    <p className="text-sm text-slate-500">3 days ago</p>
-                  </div>
-                  <Badge variant="secondary">Completed</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
+      </div>
 
       {/* Footer */}
       <footer className="bg-slate-900 text-white py-12">
