@@ -205,9 +205,14 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
 
 function parseGameInfo(data: string[]): ParsedGameInfo | null {
     // Validate that we have the minimum required data
-    if (!data[0] || data.length < 20) {
-        console.warn(`Skipping row with insufficient data: ${JSON.stringify(data)}`);
+    if (!data[0] || data.length < 15) {
+        console.error(`❌ SKIPPING ROW - insufficient data (length: ${data.length}): ${JSON.stringify(data)}`);
         return null;
+    }
+    
+    // Ensure we have at least 20 elements, padding with empty strings if needed
+    while (data.length < 20) {
+        data.push('');
     }
 
 
@@ -239,11 +244,16 @@ function parseGameInfo(data: string[]): ParsedGameInfo | null {
         }
     });
 
+    // Ensure we have at least 20 elements, padding with empty strings if needed
+    while (data.length < 20) {
+        data.push('');
+    }
+
     const winners: PlayerDeckNames[] = [];
     
     // Validate that we have the required data
     if (!data[13] || !data[14]) {
-        console.warn(`Skipping row with missing winner data: ${JSON.stringify(data)}`);
+        console.error(`❌ SKIPPING ROW - missing winner data (data[13]="${data[13]}", data[14]="${data[14]}"): ${JSON.stringify(data)}`);
         return null; // Return null to skip this row
     }
     
