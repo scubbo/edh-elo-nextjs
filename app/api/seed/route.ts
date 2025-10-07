@@ -21,7 +21,7 @@ export type PlayerDeckNames = {
 export async function POST() {
     try {
         const data = await readGoogleSheet();
-        const parsedData = data.map(parseGameInfo).filter(Boolean); // Filter out null values
+        const parsedData = data.map(parseGameInfo).filter((item): item is ParsedGameInfo => item !== null); // Filter out null values
         // await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
         await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
         return NextResponse.json({ parsedData });
@@ -57,9 +57,9 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
                     }
                 })
                 console.log(`During seeding, created new player: ${existingPlayer.name} (id: ${existingPlayer.id})`)
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // If player already exists (race condition), find it
-                if (error.code === 'P2002') {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     existingPlayer = await prisma.player.findFirst({
                         where: {
                             name: participant.playerName
@@ -74,6 +74,10 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
                     throw error
                 }
             }
+        }
+
+        if (!existingPlayer) {
+            throw new Error(`Player not found: ${participant.playerName}`);
         }
 
         let existingDeck = await prisma.deck.findFirst({
@@ -99,9 +103,9 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
                     }
                 })
                 console.log(`During seeding, created new deck: ${existingDeck.name} (id: ${existingDeck.id})`)
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // If deck already exists (race condition), find it
-                if (error.code === 'P2002') {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     existingDeck = await prisma.deck.findFirst({
                         where: {
                             name: participant.deckName,
@@ -118,6 +122,11 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
                 }
             }
         }
+
+        if (!existingDeck) {
+            throw new Error(`Deck not found: ${participant.deckName} for player ${participant.playerName}`);
+        }
+
         return {
             playerId: existingPlayer.id,
             playerName: existingPlayer.name,
