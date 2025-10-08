@@ -104,7 +104,7 @@ export default function DecksPage() {
                   It looks like there are no decks in the database yet.
                 </p>
                 <p className="text-sm text-slate-500">
-                  Visit the <a href="/admin" className="text-blue-600 hover:underline">Admin page</a> to seed the database with data.
+                  Use the <a href="/api/seed" className="text-blue-600 hover:underline">seed API endpoint</a> to populate the database with sample data.
                 </p>
               </div>
             </CardContent>
