@@ -11,6 +11,7 @@ interface Deck {
   name: string;
   ownerId: number;
   elo: number;
+  previousElo: number | null;
   wins: number;
   losses: number;
   gamesPlayed: number;
@@ -162,15 +163,25 @@ export default function DecksPage() {
                       <TableCell className="text-green-600">{deck.wins}</TableCell>
                       <TableCell className="text-red-600">{deck.losses}</TableCell>
                       <TableCell>
-                        <span className={deck.winRate >= 50 ? "text-green-600" : "text-red-600"}>
+                        <span className={deck.winRate >= 25 ? "text-green-600" : "text-red-600"}>
                           {deck.winRate.toFixed(1)}%
                         </span>
                       </TableCell>
                       <TableCell>
-                        {deck.winRate >= 25 ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
+                        {deck.previousElo !== null ? (
+                          deck.elo > deck.previousElo ? (
+                            <span title={`Previous ELO: ${deck.previousElo}`}>
+                              <TrendingUp className="h-4 w-4 text-green-600" />
+                            </span>
+                          ) : deck.elo < deck.previousElo ? (
+                            <span title={`Previous ELO: ${deck.previousElo}`}>
+                              <TrendingDown className="h-4 w-4 text-red-600" />
+                            </span>
+                          ) : (
+                            <span className="text-slate-400" title={`Previous ELO: ${deck.previousElo}`}>−</span>
+                          )
                         ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
+                          <span className="text-slate-400" title="No previous games">−</span>
                         )}
                       </TableCell>
                     </TableRow>

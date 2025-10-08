@@ -250,6 +250,7 @@ export async function getDecksWithStats(): Promise<Array<{
   ownerId: number;
   owner: { id: number; name: string };
   elo: number;
+  previousElo: number | null;
   wins: number;
   losses: number;
   gamesPlayed: number;
@@ -260,14 +261,15 @@ export async function getDecksWithStats(): Promise<Array<{
       owner: true,
       scores: {
         orderBy: { date: 'desc' },
-        take: 1
+        take: 2  // Get current and previous
       }
     }
   });
 
   const deckStats = await Promise.all(decks.map(async (deck) => {
-    // Get current ELO score
+    // Get current and previous ELO scores
     const currentElo = deck.scores[0]?.score ?? ELO_STARTING_SCORE;
+    const previousElo = deck.scores[1]?.score ?? null;
 
     // Count wins and losses
     const games = await prisma.game.findMany({
@@ -290,6 +292,7 @@ export async function getDecksWithStats(): Promise<Array<{
         name: deck.owner.name
       },
       elo: currentElo,
+      previousElo,
       wins,
       losses,
       gamesPlayed,
