@@ -261,42 +261,42 @@ export default function StatsPage() {
                 <CardDescription>Distribution of game lengths by turn count</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Under 8 turns</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.under8 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
-                      <span className="text-xs text-slate-600">
-                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.under8 / stats.overview.totalGames) * 100) : 0}%
-                      </span>
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm w-24 text-right">Under 8 turns</span>
+                    <div className="flex-1">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.under8 / stats.overview.totalGames) * 100 : 0} className="h-3" />
                     </div>
+                    <span className="text-xs text-slate-600 w-8 text-left">
+                      {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.under8 / stats.overview.totalGames) * 100) : 0}%
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">8-12 turns</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
-                      <span className="text-xs text-slate-600">
-                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100) : 0}%
-                      </span>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm w-24 text-right">8-12 turns</span>
+                    <div className="flex-1">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100 : 0} className="h-3" />
                     </div>
+                    <span className="text-xs text-slate-600 w-8 text-left">
+                      {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between8and12 / stats.overview.totalGames) * 100) : 0}%
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">12-16 turns</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
-                      <span className="text-xs text-slate-600">
-                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100) : 0}%
-                      </span>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm w-24 text-right">12-16 turns</span>
+                    <div className="flex-1">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100 : 0} className="h-3" />
                     </div>
+                    <span className="text-xs text-slate-600 w-8 text-left">
+                      {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.between12and16 / stats.overview.totalGames) * 100) : 0}%
+                    </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Over 16 turns</span>
-                    <div className="flex items-center space-x-2">
-                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.over16 / stats.overview.totalGames) * 100 : 0} className="w-20 h-2" />
-                      <span className="text-xs text-slate-600">
-                        {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.over16 / stats.overview.totalGames) * 100) : 0}%
-                      </span>
+                  <div className="flex items-center space-x-4">
+                    <span className="text-sm w-24 text-right">Over 16 turns</span>
+                    <div className="flex-1">
+                      <Progress value={stats.overview.totalGames > 0 ? (stats.turnDistribution.over16 / stats.overview.totalGames) * 100 : 0} className="h-3" />
                     </div>
+                    <span className="text-xs text-slate-600 w-8 text-left">
+                      {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.over16 / stats.overview.totalGames) * 100) : 0}%
+                    </span>
                   </div>
                 </div>
               </CardContent>
