@@ -3,4 +3,4 @@
 - [ ] Provide alternative game-creation API with primitive single-winner version.
 - [ ] Look into whether `hasEvery` (in `processParsedGameInfo` in `api/seed/route.ts`) has a `hasEveryInOrder`
        equivalent
-- [ ] Parse data from Google Sheets more robustly - or, at the very least, some tests for parsing logic. 
+- [ ] Parse data from Google Sheets more robustly - or, at the very least, some tests for parsing logic.

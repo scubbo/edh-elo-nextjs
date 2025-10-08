@@ -515,6 +515,52 @@ export async function getStatistics() {
     .filter(pair => !opponentCounts.has(pair))
     .sort();
 
+  // Calculate deck play counts for histogram
+  const deckPlayCounts = new Map<number, number>();
+  games.forEach(game => {
+    game.deckIds.forEach(deckId => {
+      deckPlayCounts.set(deckId, (deckPlayCounts.get(deckId) || 0) + 1);
+    });
+  });
+
+  // Create histogram data (bins for different play count ranges)
+  const playCountHistogram = {
+    "1 game": 0,
+    "2 games": 0,
+    "3 games": 0,
+    "4 games": 0,
+    "5 games": 0,
+    "6-10 games": 0,
+    "11-20 games": 0,
+    "21-30 games": 0,
+    "31-50 games": 0,
+    "50+ games": 0
+  };
+
+  deckPlayCounts.forEach(count => {
+    if (count === 1) {
+      playCountHistogram["1 game"]++;
+    } else if (count === 2) {
+      playCountHistogram["2 games"]++;
+    } else if (count === 3) {
+      playCountHistogram["3 games"]++;
+    } else if (count === 4) {
+      playCountHistogram["4 games"]++;
+    } else if (count === 5) {
+      playCountHistogram["5 games"]++;
+    } else if (count <= 10) {
+      playCountHistogram["6-10 games"]++;
+    } else if (count <= 20) {
+      playCountHistogram["11-20 games"]++;
+    } else if (count <= 30) {
+      playCountHistogram["21-30 games"]++;
+    } else if (count <= 50) {
+      playCountHistogram["31-50 games"]++;
+    } else {
+      playCountHistogram["50+ games"]++;
+    }
+  });
+
   return {
     overview: {
       totalGames,
@@ -527,6 +573,7 @@ export async function getStatistics() {
     playerStats,
     recentTrends,
     turnDistribution,
+    playCountHistogram,
     socialDynamics: {
       mostFrequentOpponents,
       neverPlayedPairings,

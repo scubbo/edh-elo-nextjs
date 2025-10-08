@@ -35,6 +35,18 @@ interface Statistics {
     between12and16: number;
     over16: number;
   };
+  playCountHistogram: {
+    "1 game": number;
+    "2 games": number;
+    "3 games": number;
+    "4 games": number;
+    "5 games": number;
+    "6-10 games": number;
+    "11-20 games": number;
+    "21-30 games": number;
+    "31-50 games": number;
+    "50+ games": number;
+  };
   socialDynamics: {
     mostFrequentOpponents: Array<{
       pair: string;
@@ -298,6 +310,39 @@ export default function StatsPage() {
                       {stats.overview.totalGames > 0 ? Math.round((stats.turnDistribution.over16 / stats.overview.totalGames) * 100) : 0}%
                     </span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Deck Play Count Histogram */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Deck Play Count Distribution</CardTitle>
+                <CardDescription>How many games each deck has been played</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(stats.playCountHistogram)
+                    .filter(([range, count]) => count > 0)
+                    .map(([range, count]) => {
+                      const totalDecks = Object.values(stats.playCountHistogram).reduce((sum, val) => sum + val, 0);
+                      const percentage = totalDecks > 0 ? (count / totalDecks) * 100 : 0;
+                      
+                      return (
+                        <div key={range} className="flex items-center space-x-4">
+                          <span className="text-sm w-24 text-right">{range}</span>
+                          <div className="flex-1">
+                            <Progress value={percentage} className="h-3" />
+                          </div>
+                          <span className="text-xs text-slate-600 w-8 text-left">
+                            {count}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+                <div className="mt-4 text-sm text-slate-500">
+                  Total decks: {Object.values(stats.playCountHistogram).reduce((sum, val) => sum + val, 0)}
                 </div>
               </CardContent>
             </Card>
