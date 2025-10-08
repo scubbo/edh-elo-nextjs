@@ -323,7 +323,7 @@ export default function StatsPage() {
               <CardContent>
                 <div className="space-y-4">
                   {Object.entries(stats.playCountHistogram)
-                    .filter(([_, count]) => count > 0)
+                    .filter(([, count]) => count > 0)
                     .map(([range, count]) => {
                       const totalDecks = Object.values(stats.playCountHistogram).reduce((sum, val) => sum + val, 0);
                       const percentage = totalDecks > 0 ? (count / totalDecks) * 100 : 0;
