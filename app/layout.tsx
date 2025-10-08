@@ -40,9 +40,6 @@ export default function RootLayout({
                 <Link href="/stats" className="text-slate-600 hover:text-slate-900 transition-colors">
                   Statistics
                 </Link>
-                <Link href="/debug" className="text-slate-600 hover:text-slate-900 transition-colors">
-                  Debug
-                </Link>
               </div>
             </div>
           </div>
