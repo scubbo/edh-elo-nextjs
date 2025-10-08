@@ -167,7 +167,7 @@ export default function DecksPage() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        {deck.winRate >= 50 ? (
+                        {deck.winRate >= 25 ? (
                           <TrendingUp className="h-4 w-4 text-green-600" />
                         ) : (
                           <TrendingDown className="h-4 w-4 text-red-600" />
