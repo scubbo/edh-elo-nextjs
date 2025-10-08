@@ -1,21 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Plus } from "lucide-react"
 
 interface Deck {
   id: number;
@@ -40,8 +27,6 @@ interface Player {
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[]>([])
-  const [newPlayerName, setNewPlayerName] = useState("")
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -78,30 +63,6 @@ export default function PlayersPage() {
     loadData();
   }, []);
 
-  const handleAddPlayer = async () => {
-    if (newPlayerName.trim()) {
-      try {
-        const response = await fetch('/api/players', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ name: newPlayerName.trim() }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to add player');
-        }
-
-        const newPlayer = await response.json();
-        setPlayers([...players, newPlayer]);
-        setNewPlayerName("");
-        setIsDialogOpen(false);
-      } catch (error) {
-        console.error('Error adding player:', error);
-      }
-    }
-  }
 
   if (isLoading) {
     return (
@@ -120,40 +81,6 @@ export default function PlayersPage() {
             <p className="text-slate-600">Manage your EDH group members and their decks</p>
           </div>
 
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Player
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Player</DialogTitle>
-                <DialogDescription>
-                  Add a new player to your EDH group.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="playerName">Player Name</Label>
-                  <Input
-                    id="playerName"
-                    value={newPlayerName}
-                    onChange={(e) => setNewPlayerName(e.target.value)}
-                    placeholder="Enter player name"
-                    onKeyDown={(e) => e.key === "Enter" && handleAddPlayer()}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddPlayer}>Add Player</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
 
 

@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trophy, Users, BarChart3, Plus, TrendingUp } from "lucide-react"
+import { Trophy, Users, BarChart3, TrendingUp } from "lucide-react"
 
 export default function HomePage() {
   return (
@@ -45,13 +45,7 @@ export default function HomePage() {
             Keep score, track statistics, and see how your EDH group performs over time. Built for competitive Commander
             players who want to track their progress.
           </p>
-          <div className="flex justify-center space-x-4">
-            <Link href="/games/new">
-              <Button size="lg" className="bg-amber-600 hover:bg-amber-700">
-                <Plus className="h-5 w-5 mr-2" />
-                Record New Game
-              </Button>
-            </Link>
+          <div className="flex justify-center">
             <Link href="/stats">
               <Button size="lg" variant="outline">
                 <BarChart3 className="h-5 w-5 mr-2" />
