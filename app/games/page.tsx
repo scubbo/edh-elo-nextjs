@@ -125,13 +125,10 @@ export default function GamesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Game #</TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Winner</TableHead>
-                  <TableHead>Decks</TableHead>
-                  <TableHead>Format</TableHead>
-                  <TableHead>Win Type</TableHead>
-                  <TableHead>Turns</TableHead>
+                  <TableHead className="w-48">Decks</TableHead>
+                  <TableHead className="w-24">Win Type</TableHead>
+                  <TableHead className="w-24">Turns<br/>(first elim. / total)</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -140,39 +137,31 @@ export default function GamesPage() {
                   const winningScores = game.scores.filter(score => game.winningDeckIds.includes(score.deck.id))
                   return (
                     <TableRow key={game.id} className="hover:bg-slate-50">
-                      <TableCell className="font-medium">#{game.id}</TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
                           <Calendar className="h-4 w-4 text-slate-400" />
                           <span>{new Date(game.date).toLocaleDateString()}</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="w-48">
                         <div className="flex flex-wrap gap-1">
-                          {winningScores.map(score => (
-                            <Badge key={score.id} variant="default" className="bg-amber-100 text-amber-800 border-amber-200">
-                              <Trophy className="h-3 w-3 mr-1" />
-                              {score.deck.name} ({score.deck.owner.name})
-                            </Badge>
-                          ))}
+                          {game.scores.map(score => {
+                            const isWinner = game.winningDeckIds.includes(score.deck.id)
+                            return (
+                              <Badge
+                                key={score.id}
+                                variant={isWinner ? "default" : "secondary"}
+                                className={isWinner ? "bg-amber-100 text-amber-800 border-amber-200 text-xs" : "text-xs"}
+                              >
+                                {isWinner && <Trophy className="h-3 w-3 mr-1" />}
+                                {score.deck.name} ({score.deck.owner.name})
+                              </Badge>
+                            )
+                          })}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {game.scores.map(score => (
-                            <Badge
-                              key={score.id}
-                              variant={game.winningDeckIds.includes(score.deck.id) ? "default" : "secondary"}
-                              className="text-xs"
-                            >
-                              {score.deck.name} ({score.deck.owner.name})
-                            </Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>{game.format.name}</TableCell>
                       <TableCell>{game.winType.name}</TableCell>
-                      <TableCell>{game.numberOfTurns}</TableCell>
+                      <TableCell className="w-32">{game.firstPlayerOutTurn} / {game.numberOfTurns}</TableCell>
                       <TableCell className="text-slate-600 max-w-xs truncate">{game.description || "No notes"}</TableCell>
                     </TableRow>
                   )
