@@ -108,15 +108,35 @@ export default function DeckDetailPage() {
     )
   }
 
-  // Format chart data
-  const chartData = deckDetails.eloHistory.map((point) => ({
-    date: new Date(point.date).toLocaleDateString(),
-    elo: point.elo,
-    gameId: point.gameId
-  }))
+  // Format chart data - consolidate same-day games, keeping the last game's ELO
+  const consolidatedData = new Map<string, { date: Date, elo: number, gameId: number }>()
+
+  deckDetails.eloHistory.forEach((point) => {
+    const dateKey = new Date(point.date).toLocaleDateString()
+    const existing = consolidatedData.get(dateKey)
+
+    // Keep the entry with the higher game ID (later game)
+    if (!existing || point.gameId > existing.gameId) {
+      consolidatedData.set(dateKey, {
+        date: new Date(point.date),
+        elo: point.elo,
+        gameId: point.gameId
+      })
+    }
+  })
+
+  // Convert to array and sort by date
+  const chartData = Array.from(consolidatedData.values())
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map(point => ({
+      timestamp: point.date.getTime(),
+      date: point.date.toLocaleDateString(),
+      elo: point.elo,
+      gameId: point.gameId
+    }))
 
   // Calculate y-axis domain with padding
-  const eloValues = deckDetails.eloHistory.map(point => point.elo)
+  const eloValues = chartData.map(point => point.elo)
   const minElo = Math.min(...eloValues)
   const maxElo = Math.max(...eloValues)
   const range = maxElo - minElo
@@ -200,9 +220,13 @@ export default function DeckDetailPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" verticalPoints={chartData.map(d => d.timestamp)} />
                   <XAxis
-                    dataKey="date"
+                    dataKey="timestamp"
+                    type="number"
+                    domain={['dataMin', 'dataMax']}
+                    tickFormatter={(timestamp) => new Date(timestamp).toLocaleDateString()}
+                    ticks={chartData.map(d => d.timestamp)}
                     angle={-45}
                     textAnchor="end"
                     height={80}
