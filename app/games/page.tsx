@@ -128,7 +128,7 @@ export default function GamesPage() {
                   <TableHead>Date</TableHead>
                   <TableHead className="w-48">Decks</TableHead>
                   <TableHead className="w-24">Win Type</TableHead>
-                  <TableHead className="w-24">Turns<br/>(first elim. / total)</TableHead>
+                  <TableHead className="w-24">Turns<br/>(first elim. — total)</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
@@ -159,7 +159,7 @@ export default function GamesPage() {
                         </div>
                       </TableCell>
                       <TableCell>{game.winType.name}</TableCell>
-                      <TableCell className="w-32">{game.firstPlayerOutTurn} / {game.numberOfTurns}</TableCell>
+                      <TableCell className="w-32">{game.firstPlayerOutTurn} — {game.numberOfTurns}</TableCell>
                       <TableCell className="text-slate-600 max-w-xs truncate">{game.description || "No notes"}</TableCell>
                     </TableRow>
                 ))}
