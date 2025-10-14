@@ -133,9 +133,7 @@ export default function GamesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredGames.map((game) => {
-                  const winningScores = game.scores.filter(score => game.winningDeckIds.includes(score.deck.id))
-                  return (
+                {filteredGames.map((game) => (
                     <TableRow key={game.id} className="hover:bg-slate-50">
                       <TableCell>
                         <div className="flex items-center space-x-2">
@@ -164,8 +162,7 @@ export default function GamesPage() {
                       <TableCell className="w-32">{game.firstPlayerOutTurn} / {game.numberOfTurns}</TableCell>
                       <TableCell className="text-slate-600 max-w-xs truncate">{game.description || "No notes"}</TableCell>
                     </TableRow>
-                  )
-                })}
+                ))}
               </TableBody>
             </Table>
           </CardContent>
