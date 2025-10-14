@@ -323,6 +323,108 @@ export async function backCalculateAllEloScores(): Promise<void> {
   console.log(`Completed ELO back-calculation for ${games.length} games`);
 }
 
+export async function getDeckDetails(deckId: number) {
+  const deck = await prisma.deck.findUnique({
+    where: { id: deckId },
+    include: {
+      owner: true,
+      scores: {
+        include: {
+          game: {
+            include: {
+              winType: true,
+              format: true
+            }
+          }
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      }
+    }
+  });
+
+  if (!deck) {
+    return null;
+  }
+
+  // Get all games this deck participated in
+  const games = await prisma.game.findMany({
+    where: {
+      deckIds: { has: deckId }
+    },
+    include: {
+      winType: true,
+      format: true,
+      scores: {
+        include: {
+          deck: {
+            include: {
+              owner: true
+            }
+          }
+        }
+      }
+    },
+    orderBy: {
+      date: 'asc'
+    }
+  });
+
+  // Calculate stats
+  const wins = games.filter(game => game.winningDeckIds.includes(deckId)).length;
+  const gamesPlayed = games.length;
+  const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
+  const currentElo = deck.scores[deck.scores.length - 1]?.score ?? ELO_STARTING_SCORE;
+
+  // Build ELO history for chart
+  const eloHistory = deck.scores.map(score => ({
+    date: score.date,
+    elo: score.score,
+    gameId: score.game.id
+  }));
+
+  // Build game history with results
+  const gameHistory = games.map(game => {
+    const deckScore = deck.scores.find(s => s.game.id === game.id);
+    const isWin = game.winningDeckIds.includes(deckId);
+
+    return {
+      id: game.id,
+      date: game.date,
+      isWin,
+      eloAfter: deckScore?.score ?? ELO_STARTING_SCORE,
+      format: game.format.name,
+      winType: game.winType.name,
+      numberOfTurns: game.numberOfTurns,
+      opponents: game.scores
+        .filter(s => s.deck.id !== deckId)
+        .map(s => ({
+          deckName: s.deck.name,
+          playerName: s.deck.owner.name
+        }))
+    };
+  });
+
+  return {
+    id: deck.id,
+    name: deck.name,
+    owner: {
+      id: deck.owner.id,
+      name: deck.owner.name
+    },
+    stats: {
+      gamesPlayed,
+      wins,
+      losses: gamesPlayed - wins,
+      winRate,
+      currentElo
+    },
+    eloHistory,
+    gameHistory
+  };
+}
+
 export async function getStatistics() {
   // Get all games, players, and decks
   const [games, players, decks] = await Promise.all([

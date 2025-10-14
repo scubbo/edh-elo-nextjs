@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -154,7 +155,11 @@ export default function DecksPage() {
                       <TableCell className="font-medium">
                         {index === 0 && <Trophy className="h-4 w-4 text-amber-500 inline mr-1" />}#{index + 1}
                       </TableCell>
-                      <TableCell className="font-medium">{deck.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link href={`/decks/${deck.id}`} className="text-blue-600 hover:underline">
+                          {deck.name}
+                        </Link>
+                      </TableCell>
                       <TableCell>{owner?.name}</TableCell>
                       <TableCell>
                         <Badge variant={deck.elo >= 1600 ? "default" : "secondary"}>{deck.elo}</Badge>
