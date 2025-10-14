@@ -179,10 +179,56 @@ function calculateNewRating(currentRating: number, actualScore: number, expected
   return Math.round(currentRating + ELO_K_FACTOR * (actualScore - expectedScore));
 }
 
-async function getCurrentEloScore(deckId: number): Promise<number> {
+async function getCurrentEloScore(deckId: number, beforeGameId?: number): Promise<number> {
+  // If we're calculating for a specific game, we need to find the most recent score
+  // before that game, ordered by the game's date and then game ID
+  if (beforeGameId !== undefined) {
+    const currentGame = await prisma.game.findUnique({
+      where: { id: beforeGameId },
+      select: { date: true }
+    });
+
+    if (!currentGame) {
+      throw new Error(`Game ${beforeGameId} not found`);
+    }
+
+    const latestScore = await prisma.eloScore.findFirst({
+      where: {
+        deckId,
+        game: {
+          OR: [
+            { date: { lt: currentGame.date } },
+            {
+              AND: [
+                { date: currentGame.date },
+                { id: { lt: beforeGameId } }
+              ]
+            }
+          ]
+        }
+      },
+      include: {
+        game: true
+      },
+      orderBy: [
+        { game: { date: 'desc' } },
+        { gameId: 'desc' }
+      ]
+    });
+
+    return latestScore?.score ?? ELO_STARTING_SCORE;
+  }
+
+  // For current ELO (no specific game), just get the most recent
   const latestScore = await prisma.eloScore.findFirst({
     where: { deckId },
-    orderBy: { date: 'desc' }
+    include: {
+      game: true
+    },
+    orderBy: [
+      { game: { date: 'desc' } },
+      { gameId: 'desc' }
+    ]
   });
   return latestScore?.score ?? ELO_STARTING_SCORE;
 }
@@ -203,10 +249,10 @@ export async function calculateAndStoreEloScores(gameId: number): Promise<void> 
     throw new Error(`Game with id ${gameId} not found`);
   }
 
-  // Get current ELO scores for all participating decks
+  // Get current ELO scores for all participating decks (before this game)
   const deckScores = new Map<number, number>();
   for (const deckId of game.deckIds) {
-    deckScores.set(deckId, await getCurrentEloScore(deckId));
+    deckScores.set(deckId, await getCurrentEloScore(deckId, gameId));
   }
 
   // Calculate new ELO scores for each deck
