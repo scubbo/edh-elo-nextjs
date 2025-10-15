@@ -128,7 +128,7 @@ export default function PlayersPage() {
                             variant="outline"
                             className="bg-gradient-to-br from-slate-50 to-slate-100 text-slate-700 border-slate-200 font-semibold"
                           >
-                            {deck.gamesPlayed}G
+                            {deck.gamesPlayed} Game{deck.gamesPlayed === 1 ? "" : "s"}
                           </Badge>
                         </div>
                       </div>
