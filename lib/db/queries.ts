@@ -729,4 +729,96 @@ export async function getStatistics() {
       allPlayers: players.map(p => p.name).sort()
     }
   };
+}
+
+export async function getPlayerDetails(playerId: number) {
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: {
+      decks: {
+        include: {
+          scores: {
+            include: {
+              game: true
+            },
+            orderBy: {
+              date: 'desc'
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!player) {
+    return null;
+  }
+
+  // Get all games for all of this player's decks
+  const games = await prisma.game.findMany({
+    where: {
+      deckIds: {
+        hasSome: player.decks.map(d => d.id)
+      }
+    },
+    include: {
+      winType: true,
+      format: true,
+      scores: {
+        include: {
+          deck: {
+            include: {
+              owner: true
+            }
+          }
+        }
+      }
+    },
+    orderBy: {
+      date: 'desc'
+    }
+  });
+
+  // Calculate stats for each deck
+  const decksWithStats = player.decks.map(deck => {
+    const deckGames = games.filter(game => game.deckIds.includes(deck.id));
+    const wins = deckGames.filter(game => game.winningDeckIds.includes(deck.id)).length;
+    const gamesPlayed = deckGames.length;
+    const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
+    const currentElo = deck.scores[0]?.score ?? ELO_STARTING_SCORE;
+
+    return {
+      id: deck.id,
+      name: deck.name,
+      elo: currentElo,
+      wins,
+      losses: gamesPlayed - wins,
+      gamesPlayed,
+      winRate
+    };
+  });
+
+  // Calculate aggregate player stats
+  const totalGames = games.length;
+  const totalWins = games.filter(game =>
+    game.winningDeckIds.some(deckId => player.decks.some(d => d.id === deckId))
+  ).length;
+  const overallWinRate = totalGames > 0 ? (totalWins / totalGames) * 100 : 0;
+  const averageElo = decksWithStats.length > 0
+    ? Math.round(decksWithStats.reduce((sum, deck) => sum + deck.elo, 0) / decksWithStats.length)
+    : ELO_STARTING_SCORE;
+
+  return {
+    id: player.id,
+    name: player.name,
+    decks: decksWithStats,
+    stats: {
+      totalGames,
+      totalWins,
+      totalLosses: totalGames - totalWins,
+      overallWinRate,
+      averageElo,
+      totalDecks: player.decks.length
+    }
+  };
 } 
