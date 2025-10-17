@@ -7,6 +7,7 @@ interface DeckSummaryProps {
     elo: number;
     winRate: number;
     gamesPlayed: number;
+    lastPlayed?: Date | string | null;
   };
   showBorder?: boolean;
 }
@@ -24,6 +25,24 @@ export default function DeckSummary({ deck, showBorder = true }: DeckSummaryProp
                       'from-red-50 to-red-100 text-red-800 border-red-200'
 
   const borderClasses = showBorder ? "pb-3 border-b border-slate-200 last:border-0 last:pb-0" : ""
+
+  // Format last played date
+  const formatLastPlayed = (date: Date | string | null | undefined) => {
+    if (!date) return null
+    const d = typeof date === 'string' ? new Date(date) : date
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays}d ago`
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`
+    if (diffDays < 365) return `${Math.floor(diffDays / 30)}mo ago`
+    return `${Math.floor(diffDays / 365)}y ago`
+  }
+
+  const lastPlayedText = formatLastPlayed(deck.lastPlayed)
 
   return (
     <div className={borderClasses}>
@@ -47,6 +66,14 @@ export default function DeckSummary({ deck, showBorder = true }: DeckSummaryProp
         >
           {deck.gamesPlayed} Game{deck.gamesPlayed === 1 ? "" : "s"}
         </Badge>
+        {lastPlayedText && (
+          <Badge
+            variant="outline"
+            className="bg-gradient-to-br from-purple-50 to-purple-100 text-purple-700 border-purple-200 font-semibold"
+          >
+            {lastPlayedText}
+          </Badge>
+        )}
       </div>
     </div>
   )

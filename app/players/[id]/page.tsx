@@ -18,6 +18,7 @@ interface PlayerDetails {
     losses: number;
     gamesPlayed: number;
     winRate: number;
+    lastPlayed?: Date | string | null;
   }>;
   stats: {
     totalGames: number;
@@ -29,12 +30,16 @@ interface PlayerDetails {
   };
 }
 
+type SortBy = 'elo' | 'lastPlayed'
+
 export default function PlayerDetailPage() {
   const params = useParams()
   const playerId = params.id as string
   const [playerDetails, setPlayerDetails] = useState<PlayerDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<SortBy>('elo')
+  const [sortReverse, setSortReverse] = useState(false)
 
   useEffect(() => {
     const fetchPlayerDetails = async () => {
@@ -57,6 +62,21 @@ export default function PlayerDetailPage() {
 
     fetchPlayerDetails()
   }, [playerId])
+
+  // Sort decks based on current sort settings
+  const sortedDecks = playerDetails ? [...playerDetails.decks].sort((a, b) => {
+    let comparison = 0
+
+    if (sortBy === 'elo') {
+      comparison = b.elo - a.elo
+    } else if (sortBy === 'lastPlayed') {
+      const aDate = a.lastPlayed ? new Date(a.lastPlayed).getTime() : 0
+      const bDate = b.lastPlayed ? new Date(b.lastPlayed).getTime() : 0
+      comparison = bDate - aDate
+    }
+
+    return sortReverse ? -comparison : comparison
+  }) : []
 
   if (loading) {
     return (
@@ -166,11 +186,33 @@ export default function PlayerDetailPage() {
         {/* Decks */}
         <Card>
           <CardHeader>
-            <CardTitle>Decks</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Decks</CardTitle>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-slate-600">Sort by:</label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortBy)}
+                    className="px-3 py-1 border border-slate-300 rounded-md text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="elo">ELO</option>
+                    <option value="lastPlayed">Last Played</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => setSortReverse(!sortReverse)}
+                  className="px-3 py-1 border border-slate-300 rounded-md text-sm bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title={sortReverse ? "Sort ascending" : "Sort descending"}
+                >
+                  {sortReverse ? "↑" : "↓"}
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {playerDetails.decks.map((deck) => (
+              {sortedDecks.map((deck) => (
                 <DeckSummary key={deck.id} deck={deck} />
               ))}
             </div>

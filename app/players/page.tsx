@@ -15,6 +15,7 @@ interface Deck {
   losses: number;
   gamesPlayed: number;
   winRate: number;
+  lastPlayed?: Date | string | null;
   owner: {
     id: number;
     name: string;

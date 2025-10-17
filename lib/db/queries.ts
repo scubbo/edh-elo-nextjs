@@ -301,6 +301,7 @@ export async function getDecksWithStats(): Promise<Array<{
   losses: number;
   gamesPlayed: number;
   winRate: number;
+  lastPlayed: Date | null;
 }>> {
   const decks = await prisma.deck.findMany({
     include: {
@@ -321,6 +322,9 @@ export async function getDecksWithStats(): Promise<Array<{
     const games = await prisma.game.findMany({
       where: {
         deckIds: { has: deck.id }
+      },
+      orderBy: {
+        date: 'desc'
       }
     });
 
@@ -328,6 +332,7 @@ export async function getDecksWithStats(): Promise<Array<{
     const losses = games.length - wins;
     const gamesPlayed = games.length;
     const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
+    const lastPlayed = games.length > 0 ? games[0].date : null;
 
     return {
       id: deck.id,
@@ -342,7 +347,8 @@ export async function getDecksWithStats(): Promise<Array<{
       wins,
       losses,
       gamesPlayed,
-      winRate
+      winRate,
+      lastPlayed
     };
   }));
 
@@ -786,6 +792,7 @@ export async function getPlayerDetails(playerId: number) {
     const gamesPlayed = deckGames.length;
     const winRate = gamesPlayed > 0 ? (wins / gamesPlayed) * 100 : 0;
     const currentElo = deck.scores[0]?.score ?? ELO_STARTING_SCORE;
+    const lastPlayed = deckGames.length > 0 ? deckGames[0].date : null;
 
     return {
       id: deck.id,
@@ -794,7 +801,8 @@ export async function getPlayerDetails(playerId: number) {
       wins,
       losses: gamesPlayed - wins,
       gamesPlayed,
-      winRate
+      winRate,
+      lastPlayed
     };
   });
 
