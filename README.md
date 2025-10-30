@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# EDH ELO Tracker
+
+Next.js (App Router) project for tracking Commander / EDH games, ELO ratings, decks, and stats.
 
 ## Getting Started
 
-First, run the development server:
+Install dependencies and generate the Prisma client:
+
+```bash
+npm install
+npm run prisma:generate
+```
+
+Start the dev server at [http://localhost:3000](http://localhost:3000):
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Authentication Setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Google OAuth powers sign-in via [NextAuth.js](https://next-auth.js.org/) (App Router integration). Before running the app configure a Google Cloud OAuth client and set these environment variables in `.env`:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXTAUTH_SECRET= # `openssl rand -base64 32` (or AUTH_SECRET)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+DATABASE_URL=postgres://...
+```
 
-## Learn More
+After setting the variables:
 
-To learn more about Next.js, take a look at the following resources:
+1. Install the auth dependencies:
+   ```bash
+   npm install next-auth @next-auth/prisma-adapter
+   ```
+2. Apply the new Prisma models:
+   ```bash
+   npx prisma migrate dev
+   ```
+3. Regenerate the Prisma client:
+   ```bash
+   npm run prisma:generate
+   ```
+4. Restart the dev server so Next.js picks up the auth configuration.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Newly authenticated users are stored in the `User` table and can be associated with existing `Player` rows through the optional `userId` field.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Database
 
-## Deploy on Vercel
+The project uses PostgreSQL (see `docker-compose.yml` for local development). Seed data and helper scripts live in `app/api`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Additional Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run db:up` / `db:down` - start/stop the local Postgres container.
+- `npm run db:reset` - reset the database schema.
+- `npm run prisma:studio` - inspect and edit data with Prisma Studio.
+
+## Deployment
+
+The app targets Vercel, but any Next.js hosting platform with Node.js 18+ and Postgres support will work. Ensure production deployments set the same environment variables described above.
