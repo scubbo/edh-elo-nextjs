@@ -17,6 +17,9 @@ Start the dev server at [http://localhost:3000](http://localhost:3000):
 npm run dev
 ```
 
+> **Note**  
+> Next.js 15 and Prisma 6 require Node.js 18.18 or newer. Use a tool like `nvm`, `asdf`, or Volta to pin to Node 20 if you run into local build failures.
+
 ## Authentication Setup
 
 Google OAuth powers sign-in via [NextAuth.js](https://next-auth.js.org/) (App Router integration). Before running the app configure a Google Cloud OAuth client and set these environment variables in `.env`:
