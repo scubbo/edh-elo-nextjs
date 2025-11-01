@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { google } from 'googleapis';
 import prisma from "@/lib/db/client";
+import { calculateAndStoreEloScores } from "@/lib/db/queries";
 
 export type ParsedGameInfo = {
     date: Date,
@@ -200,6 +201,10 @@ async function processParsedGameInfo(parsedGameInfo: ParsedGameInfo) {
             description: parsedGameInfo.description || 'No description'
         }
     })
+
+    // Calculate and store ELO scores for this game (required for decks to appear in UI)
+    await calculateAndStoreEloScores(newGame.id);
+
     console.log(`During seeding, created new game: ${newGame.id} for date ${newGame.date}, deckIds: ${newGame.deckIds.join(', ')}, winningDeckIds: ${newGame.winningDeckIds.join(', ')}, description: ${newGame.description}`)
 }
 
