@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Loader2, CheckCircle, XCircle, Database, Trash2, AlertTriangle, RefreshCw } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Loader2, CheckCircle, XCircle, Database, Trash2, AlertTriangle, RefreshCw, Calendar } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface OperationResult {
   success: boolean
@@ -30,11 +37,21 @@ interface DatabaseStats {
   formats: number
 }
 
+interface Game {
+  id: number
+  date: string
+  description: string
+}
+
 export function DebugDashboard() {
   const [isLoading, setIsLoading] = useState(false)
   const [results, setResults] = useState<OperationResult[]>([])
   const [stats, setStats] = useState<DatabaseStats | null>(null)
   const [isWipeDialogOpen, setIsWipeDialogOpen] = useState(false)
+  const [isDeleteGamesDialogOpen, setIsDeleteGamesDialogOpen] = useState(false)
+  const [games, setGames] = useState<Game[]>([])
+  const [selectedGameId, setSelectedGameId] = useState<string>("")
+  const [isLoadingGames, setIsLoadingGames] = useState(false)
 
   const appendResult = (result: OperationResult) => {
     setResults((prev) => [...prev, result])
@@ -145,6 +162,90 @@ export function DebugDashboard() {
     setResults([])
   }
 
+  const fetchGames = async () => {
+    setIsLoadingGames(true)
+    try {
+      const response = await fetch("/api/games", { cache: "no-store" })
+      if (response.ok) {
+        const data: Game[] = await response.json()
+        // Sort by date descending (most recent first)
+        const sorted = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setGames(sorted)
+      } else {
+        appendResult({
+          success: false,
+          message: "Failed to fetch games",
+          timestamp: new Date().toLocaleString(),
+        })
+      }
+    } catch (error) {
+      appendResult({
+        success: false,
+        message: `Failed to fetch games: ${error instanceof Error ? error.message : "Network error"}`,
+        timestamp: new Date().toLocaleString(),
+      })
+    } finally {
+      setIsLoadingGames(false)
+    }
+  }
+
+  const deleteGamesAfter = async () => {
+    if (!selectedGameId) {
+      appendResult({
+        success: false,
+        message: "Please select a game",
+        timestamp: new Date().toLocaleString(),
+      })
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const response = await fetch("/api/games/delete-after", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ gameId: parseInt(selectedGameId) }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        appendResult({
+          success: true,
+          message: `Delete Games After: ${data.message || "Success"}`,
+          timestamp: new Date().toLocaleString(),
+        })
+        setStats(null)
+        setGames([])
+        setSelectedGameId("")
+        setIsDeleteGamesDialogOpen(false)
+      } else {
+        appendResult({
+          success: false,
+          message: `Delete Games After: ${data.error || "Failed"}`,
+          timestamp: new Date().toLocaleString(),
+        })
+      }
+    } catch (error) {
+      appendResult({
+        success: false,
+        message: `Delete Games After: ${error instanceof Error ? error.message : "Network error"}`,
+        timestamp: new Date().toLocaleString(),
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isDeleteGamesDialogOpen && games.length === 0) {
+      fetchGames()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeleteGamesDialogOpen])
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="container mx-auto px-4 py-8">
@@ -246,6 +347,76 @@ export function DebugDashboard() {
               >
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Run ELO Calc"}
               </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-orange-200">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2 text-orange-600">
+                <Calendar className="h-5 w-5 text-orange-600" />
+                <span>Delete Games After</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-sm text-slate-600">
+                <strong className="text-orange-600">WARNING:</strong> Delete all games after a selected game (and their ELO scores)
+              </p>
+              <Dialog open={isDeleteGamesDialogOpen} onOpenChange={setIsDeleteGamesDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button disabled={isLoading} className="w-full bg-orange-600 hover:bg-orange-700">
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
+                    Delete Games After
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center space-x-2 text-orange-600">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span>Delete Games After Selected Game</span>
+                    </DialogTitle>
+                    <DialogDescription>
+                      Select a game. All games with dates <strong>after</strong> the selected game will be permanently deleted, along with their ELO scores.
+                      <strong className="text-orange-600 block mt-2">This action cannot be undone!</strong>
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    {isLoadingGames ? (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="ml-2 text-sm text-slate-600">Loading games...</span>
+                      </div>
+                    ) : (
+                      <Select value={selectedGameId} onValueChange={setSelectedGameId}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a game..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {games.map((game) => (
+                            <SelectItem key={game.id} value={game.id.toString()}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">
+                                  {new Date(game.date).toLocaleDateString()}
+                                </span>
+                                <span className="text-xs text-slate-500 truncate max-w-[300px]">
+                                  {game.description}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsDeleteGamesDialogOpen(false)} disabled={isLoading}>
+                      Cancel
+                    </Button>
+                    <Button onClick={deleteGamesAfter} disabled={isLoading || !selectedGameId} className="bg-orange-600 hover:bg-orange-700">
+                      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Yes, Delete Games After"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardContent>
           </Card>
 
