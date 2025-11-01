@@ -4,6 +4,7 @@ import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 import prisma from "@/lib/db/client";
+import { ADMIN_EMAIL } from "@/lib/constants";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -42,3 +43,8 @@ export const authOptions: NextAuthOptions = {
 };
 
 export const getAuthSession = () => getServerSession(authOptions);
+
+export async function isAdmin(): Promise<boolean> {
+  const session = await getAuthSession();
+  return session?.user?.email === ADMIN_EMAIL;
+}

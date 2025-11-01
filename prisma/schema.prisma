@@ -15,18 +15,20 @@ datasource db {
 }
 
 model Player {
-  id    Int    @id @default(autoincrement())
-  name  String @unique
-  user   User?  @relation(fields: [userId], references: [id])
-  userId String? @unique
-  decks Deck[]
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  user     User?   @relation(fields: [userId], references: [id])
+  userId   String? @unique
+  metadata Json?   @default("{}")
+  decks    Deck[]
 }
 
 model Deck {
-  id          Int    @id @default(autoincrement())
-  name        String
-  owner       Player @relation(fields: [ownerId], references: [id])
-  ownerId     Int
+  id       Int        @id @default(autoincrement())
+  name     String
+  owner    Player     @relation(fields: [ownerId], references: [id])
+  ownerId  Int
+  metadata Json?      @default("{}")
 
   scores EloScore[] @relation("DeckScores", fields: [])
 
@@ -56,6 +58,7 @@ model Game {
   winTypeId         Int
   formatId          Int
   description       String
+  metadata          Json?    @default("{}")
 
   winType           WinType @relation("WinTypeGames", fields: [winTypeId], references: [id])
   format            Format  @relation("FormatGames", fields: [formatId], references: [id])

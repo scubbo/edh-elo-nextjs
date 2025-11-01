@@ -6,13 +6,17 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Trophy, Target, TrendingUp } from "lucide-react"
 import DeckSummary from "@/components/DeckSummary"
+import { MetadataEditor } from "@/components/MetadataEditor"
+import ColorPreference from "@/components/ColorPreference"
 
 interface PlayerDetails {
   id: number;
   name: string;
+  metadata?: Record<string, unknown> | null;
   decks: Array<{
     id: number;
     name: string;
+    metadata?: Record<string, unknown> | null;
     elo: number;
     wins: number;
     losses: number;
@@ -78,6 +82,71 @@ export default function PlayerDetailPage() {
     return sortReverse ? -comparison : comparison
   }) : []
 
+  // Map color codes to display names
+  const colorCodeToDisplayName: Record<string, string> = {
+    "W": "White",
+    "U": "Blue",
+    "B": "Black",
+    "R": "Red",
+    "G": "Green",
+    "WU": "Azorius (WU)",
+    "UB": "Dimir (UB)",
+    "BR": "Rakdos (BR)",
+    "RG": "Gruul (RG)",
+    "WG": "Selesnya (WG)",
+    "WB": "Orzhov (WB)",
+    "UR": "Izzet (UR)",
+    "BG": "Golgari (BG)",
+    "WR": "Boros (WR)",
+    "UG": "Simic (UG)",
+    "WUG": "Bant (WUG)",
+    "WUB": "Esper (WUB)",
+    "UBR": "Grixis (UBR)",
+    "BRG": "Jund (BRG)",
+    "WRG": "Naya (WRG)",
+    "WBG": "Abzan (WBG)",
+    "WUR": "Jeskai (WUR)",
+    "UBG": "Sultai (UBG)",
+    "WBR": "Mardu (WBR)",
+    "URG": "Temur (URG)",
+    "WUBR": "WUBR",
+    "WUBG": "WUBG",
+    "WURG": "WURG",
+    "WBRG": "WBRG",
+    "UBRG": "UBRG",
+    "WUBRG": "WUBRG",
+    "colourless": "Colourless",
+  }
+
+  // Calculate color preference data
+  const calculateColorPreferences = () => {
+    if (!playerDetails) {
+      return { deckCounts: {}, playCounts: {} }
+    }
+
+    const deckCounts: Record<string, number> = {}
+    const playCounts: Record<string, number> = {}
+
+    playerDetails.decks.forEach((deck) => {
+      const metadata = deck.metadata as Record<string, unknown> | null
+      const colourCode = metadata?.colours
+      
+      if (colourCode && typeof colourCode === 'string') {
+        const displayName = colorCodeToDisplayName[colourCode] || colourCode
+        
+        // Count decks
+        deckCounts[displayName] = (deckCounts[displayName] || 0) + 1
+        
+        // Count plays (games played)
+        playCounts[displayName] = (playCounts[displayName] || 0) + (deck.gamesPlayed || 0)
+      }
+    })
+
+    return { deckCounts, playCounts }
+  }
+
+  const colorPreferences = calculateColorPreferences()
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -112,8 +181,37 @@ export default function PlayerDetailPage() {
         </Link>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">{playerDetails.name}</h1>
-          <p className="text-slate-600">Player statistics and deck performance</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">{playerDetails.name}</h1>
+              <p className="text-slate-600">Player statistics and deck performance</p>
+            </div>
+            <MetadataEditor
+              entityType="player"
+              entityId={playerDetails.id}
+              currentMetadata={playerDetails.metadata || null}
+              onUpdate={() => {
+                // Reload player details
+                fetch(`/api/players/${playerId}`)
+                  .then(res => res.json())
+                  .then(data => setPlayerDetails(data))
+                  .catch(err => console.error('Error reloading player:', err))
+              }}
+            />
+          </div>
+          {/* Metadata Display */}
+          {(playerDetails.metadata && Object.keys(playerDetails.metadata).length > 0) && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-slate-600">
+                  Metadata available for players.
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Overview Stats */}
@@ -182,6 +280,14 @@ export default function PlayerDetailPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Color Preferences */}
+        {Object.keys(colorPreferences.deckCounts).length > 0 && (
+          <ColorPreference
+            deckCounts={colorPreferences.deckCounts}
+            playCounts={colorPreferences.playCounts}
+          />
+        )}
 
         {/* Decks */}
         <Card>
