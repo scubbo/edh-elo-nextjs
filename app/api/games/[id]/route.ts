@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getDeckDetails } from '@/lib/db/queries';
 import { isAdmin } from '@/lib/auth';
 import { validateMetadata } from '@/lib/utils';
 import prisma from '@/lib/db/client';
@@ -10,29 +9,44 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const deckId = parseInt(id, 10);
+    const gameId = parseInt(id, 10);
 
-    if (isNaN(deckId)) {
+    if (isNaN(gameId)) {
       return NextResponse.json(
-        { error: 'Invalid deck ID' },
+        { error: 'Invalid game ID' },
         { status: 400 }
       );
     }
 
-    const deckDetails = await getDeckDetails(deckId);
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+      include: {
+        winType: true,
+        format: true,
+        scores: {
+          include: {
+            deck: {
+              include: {
+                owner: true
+              }
+            }
+          }
+        }
+      }
+    });
 
-    if (!deckDetails) {
+    if (!game) {
       return NextResponse.json(
-        { error: 'Deck not found' },
+        { error: 'Game not found' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json(deckDetails);
+    return NextResponse.json(game);
   } catch (error) {
-    console.error('Error fetching deck details:', error);
+    console.error('Error fetching game details:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch deck details' },
+      { error: 'Failed to fetch game details' },
       { status: 500 }
     );
   }
@@ -52,11 +66,11 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const deckId = parseInt(id, 10);
+    const gameId = parseInt(id, 10);
 
-    if (isNaN(deckId)) {
+    if (isNaN(gameId)) {
       return NextResponse.json(
-        { error: 'Invalid deck ID' },
+        { error: 'Invalid game ID' },
         { status: 400 }
       );
     }
@@ -80,30 +94,31 @@ export async function PATCH(
       );
     }
 
-    // Check if deck exists
-    const existingDeck = await prisma.deck.findUnique({
-      where: { id: deckId },
+    // Check if game exists
+    const existingGame = await prisma.game.findUnique({
+      where: { id: gameId },
     });
 
-    if (!existingDeck) {
+    if (!existingGame) {
       return NextResponse.json(
-        { error: 'Deck not found' },
+        { error: 'Game not found' },
         { status: 404 }
       );
     }
 
     // Update metadata
-    const updatedDeck = await prisma.deck.update({
-      where: { id: deckId },
+    const updatedGame = await prisma.game.update({
+      where: { id: gameId },
       data: { metadata },
     });
 
-    return NextResponse.json(updatedDeck);
+    return NextResponse.json(updatedGame);
   } catch (error) {
-    console.error('Error updating deck metadata:', error);
+    console.error('Error updating game metadata:', error);
     return NextResponse.json(
-      { error: 'Failed to update deck metadata' },
+      { error: 'Failed to update game metadata' },
       { status: 500 }
     );
   }
 }
+

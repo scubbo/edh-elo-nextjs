@@ -6,10 +6,12 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Trophy, Target, TrendingUp } from "lucide-react"
 import DeckSummary from "@/components/DeckSummary"
+import { MetadataEditor } from "@/components/MetadataEditor"
 
 interface PlayerDetails {
   id: number;
   name: string;
+  metadata?: Record<string, any> | null;
   decks: Array<{
     id: number;
     name: string;
@@ -112,8 +114,37 @@ export default function PlayerDetailPage() {
         </Link>
 
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">{playerDetails.name}</h1>
-          <p className="text-slate-600">Player statistics and deck performance</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">{playerDetails.name}</h1>
+              <p className="text-slate-600">Player statistics and deck performance</p>
+            </div>
+            <MetadataEditor
+              entityType="player"
+              entityId={playerDetails.id}
+              currentMetadata={playerDetails.metadata || null}
+              onUpdate={() => {
+                // Reload player details
+                fetch(`/api/players/${playerId}`)
+                  .then(res => res.json())
+                  .then(data => setPlayerDetails(data))
+                  .catch(err => console.error('Error reloading player:', err))
+              }}
+            />
+          </div>
+          {/* Metadata Display */}
+          {(playerDetails.metadata && Object.keys(playerDetails.metadata).length > 0) && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-slate-600">
+                  Metadata available for players.
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Overview Stats */}

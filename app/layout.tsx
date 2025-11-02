@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Trophy } from "lucide-react";
 
 import { AuthControls } from "@/components/auth-controls";
+import { Providers } from "@/components/providers";
 import { getAuthSession } from "@/lib/auth";
 import { ADMIN_EMAIL } from "@/lib/constants";
 
@@ -73,7 +74,7 @@ export default async function RootLayout({
             </div>
           </div>
         </nav>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

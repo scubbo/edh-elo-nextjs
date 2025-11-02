@@ -472,6 +472,7 @@ export async function getDeckDetails(deckId: number) {
       id: deck.owner.id,
       name: deck.owner.name
     },
+    metadata: deck.metadata,
     stats: {
       gamesPlayed,
       wins,
@@ -826,6 +827,7 @@ export async function getPlayerDetails(playerId: number) {
   return {
     id: player.id,
     name: player.name,
+    metadata: player.metadata,
     decks: decksWithStats,
     stats: {
       totalGames,

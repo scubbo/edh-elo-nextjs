@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import Link from "next/link"
 import { Trophy, User, TrendingUp, Target, Calendar } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import { MetadataEditor } from "@/components/MetadataEditor"
 
 interface DeckDetails {
   id: number
@@ -16,6 +17,7 @@ interface DeckDetails {
     id: number
     name: string
   }
+  metadata?: Record<string, any> | null
   stats: {
     gamesPlayed: number
     wins: number
@@ -149,11 +151,60 @@ export default function DeckDetailPage() {
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">{deckDetails.name}</h1>
-          <div className="flex items-center gap-2 text-slate-600">
-            <User className="h-4 w-4" />
-            <span>Owned by <span className="font-medium">{deckDetails.owner.name}</span></span>
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">{deckDetails.name}</h1>
+              <div className="flex items-center gap-2 text-slate-600">
+                <User className="h-4 w-4" />
+                <span>Owned by <span className="font-medium">{deckDetails.owner.name}</span></span>
+              </div>
+            </div>
+            <MetadataEditor
+              entityType="deck"
+              entityId={deckDetails.id}
+              currentMetadata={deckDetails.metadata || null}
+              onUpdate={() => {
+                // Reload deck details
+                fetch(`/api/decks/${deckId}`)
+                  .then(res => res.json())
+                  .then(data => setDeckDetails(data))
+                  .catch(err => console.error('Error reloading deck:', err))
+              }}
+            />
           </div>
+          {/* Metadata Display */}
+          {(deckDetails.metadata && Object.keys(deckDetails.metadata).length > 0) && (
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="text-lg">Metadata</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-4">
+                  {deckDetails.metadata.colours && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-600">Colours:</span>
+                      <Badge variant="outline" className="font-mono">
+                        {deckDetails.metadata.colours}
+                      </Badge>
+                    </div>
+                  )}
+                  {deckDetails.metadata.decklistUrl && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-600">Decklist:</span>
+                      <Link
+                        href={deckDetails.metadata.decklistUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline text-sm"
+                      >
+                        View Decklist
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Top-level stats */}
