@@ -96,8 +96,10 @@ export async function getAllDecks(): Promise<Deck[]> {
 export async function getGames(date?: Date): Promise<Game[]> {
   const where = date ? {
     date: {
-      gte: new Date(date.setHours(0, 0, 0, 0)),
-      lt: new Date(date.setHours(23, 59, 59, 999))
+      // Use UTC for date range to match how dates are stored (at noon UTC)
+      // Use UTC methods to avoid timezone issues
+      gte: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0)),
+      lt: new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999))
     }
   } : {};
 
@@ -119,9 +121,14 @@ export async function getGames(date?: Date): Promise<Game[]> {
         }
       }
     },
-    orderBy: {
-      date: 'desc'
-    }
+    orderBy: [
+      {
+        date: 'desc'
+      },
+      {
+        id: 'desc'  // For games on the same date, order by ID descending (last inserted first)
+      }
+    ]
   });
 
   return games;

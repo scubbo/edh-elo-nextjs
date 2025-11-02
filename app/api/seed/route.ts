@@ -22,10 +22,36 @@ export type PlayerDeckNames = {
 export async function POST() {
     try {
         const data = await readGoogleSheet();
-        const parsedData = data.map(parseGameInfo).filter((item): item is ParsedGameInfo => item !== null); // Filter out null values
-        // await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
-        await Promise.all(parsedData.slice(1).map(processParsedGameInfo));
-        return NextResponse.json({ parsedData });
+        // Parse data and preserve original index for ordering games on the same date
+        const parsedDataWithIndex = data.map((row, index) => ({
+            parsed: parseGameInfo(row),
+            originalIndex: index
+        }));
+        
+        const parsedData = parsedDataWithIndex
+            .filter((item): item is { parsed: ParsedGameInfo, originalIndex: number } => item.parsed !== null)
+            .map(item => ({
+                ...item.parsed,
+                originalIndex: item.originalIndex
+            }));
+        
+        // Sort by date (ascending), then by original index to preserve sheet order for same-date games
+        parsedData.sort((a, b) => {
+            const dateDiff = a.date.getTime() - b.date.getTime();
+            if (dateDiff !== 0) return dateDiff;
+            return a.originalIndex - b.originalIndex;
+        });
+        
+        // Process games sequentially to preserve order and ensure correct date handling
+        for (const gameInfo of parsedData.slice(1)) {
+            // Remove originalIndex before processing
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { originalIndex, ...gameData } = gameInfo;
+            await processParsedGameInfo(gameData);
+        }
+        
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        return NextResponse.json({ parsedData: parsedData.map(({ originalIndex, ...rest }) => rest) });
     } catch (error) {
         console.error('Seeding error:', error);
         return NextResponse.json(
@@ -236,7 +262,9 @@ function parseGameInfo(data: string[]): ParsedGameInfo | null {
     // Handle 2-digit years (assume 20xx for years < 50, 19xx for years >= 50)
     const fullYear = year < 50 ? 2000 + year : 1900 + year;
     
-    const date = new Date(fullYear, month, day);
+    // Create date in UTC at noon to avoid timezone shifts when displayed
+    // Using noon UTC ensures the date displays correctly in all timezones
+    const date = new Date(Date.UTC(fullYear, month, day, 12, 0, 0));
     if (isNaN(date.getTime())) {
         console.warn(`Skipping row with invalid date: ${dateStr}`);
         return null;
@@ -327,20 +355,16 @@ async function readGoogleSheet() {
     const sheetNames = spreadsheet.data.sheets?.map(sheet => sheet.properties?.title).filter(Boolean) || [];
     console.log('Available sheets:', sheetNames);
 
-    // Read from all available sheets
-    const sheetPromises = sheetNames.map(sheetName => 
-      sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: `${sheetName}!A1:Z`,
-      })
-    );
-
-    const responses = await Promise.all(sheetPromises);
-    
-    // Combine data from all sheets, skipping header rows after the first sheet
+    // Read from all sheets sequentially to preserve order
     let combinedData: string[][] = [];
     
-    responses.forEach((response, index) => {
+    for (let index = 0; index < sheetNames.length; index++) {
+      const sheetName = sheetNames[index];
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!A1:Z`,
+      });
+      
       const sheetData = response.data.values || [];
       if (index === 0) {
         // First sheet: include all data (including header)
@@ -351,7 +375,7 @@ async function readGoogleSheet() {
           combinedData = [...combinedData, ...sheetData.slice(1)];
         }
       }
-    });
+    }
 
     console.log(`Read data from ${sheetNames.length} sheets, total rows: ${combinedData.length}`);
     return combinedData;
