@@ -350,6 +350,28 @@ export function DebugDashboard() {
             </CardContent>
           </Card>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+                <span>Auto-fill Deck Colours</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="mb-4 text-sm text-slate-600">
+                Query Scryfall for decks without colours. Updates only when exactly one card match is found.
+              </p>
+              <Button
+                onClick={() => runOperation("debug/auto-fill-colours", "Auto-fill Colours")}
+                disabled={isLoading}
+                className="w-full"
+                variant="outline"
+              >
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Run Auto-fill"}
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card className="border-orange-200">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2 text-orange-600">

@@ -17,7 +17,7 @@ interface DeckDetails {
     id: number
     name: string
   }
-  metadata?: Record<string, any> | null
+  metadata?: Record<string, unknown> | null
   stats: {
     gamesPlayed: number
     wins: number
@@ -173,38 +173,42 @@ export default function DeckDetailPage() {
             />
           </div>
           {/* Metadata Display */}
-          {(deckDetails.metadata && Object.keys(deckDetails.metadata).length > 0) && (
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="text-lg">Metadata</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-4">
-                  {deckDetails.metadata.colours && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-600">Colours:</span>
-                      <Badge variant="outline" className="font-mono">
-                        {deckDetails.metadata.colours}
-                      </Badge>
-                    </div>
-                  )}
-                  {deckDetails.metadata.decklistUrl && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-slate-600">Decklist:</span>
-                      <Link
-                        href={deckDetails.metadata.decklistUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline text-sm"
-                      >
-                        View Decklist
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {deckDetails.metadata && Object.keys(deckDetails.metadata).length > 0 && (() => {
+            const colours = typeof deckDetails.metadata.colours === 'string' ? deckDetails.metadata.colours : null;
+            const decklistUrl = typeof deckDetails.metadata.decklistUrl === 'string' ? deckDetails.metadata.decklistUrl : null;
+            return (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-lg">Metadata</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-4">
+                    {colours && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-600">Colours:</span>
+                        <Badge variant="outline" className="font-mono">
+                          {colours}
+                        </Badge>
+                      </div>
+                    )}
+                    {decklistUrl && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-600">Decklist:</span>
+                        <Link
+                          href={decklistUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          View Decklist
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
         </div>
 
         {/* Top-level stats */}

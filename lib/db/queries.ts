@@ -805,6 +805,7 @@ export async function getPlayerDetails(playerId: number) {
     return {
       id: deck.id,
       name: deck.name,
+      metadata: deck.metadata,
       elo: currentElo,
       wins,
       losses: gamesPlayed - wins,

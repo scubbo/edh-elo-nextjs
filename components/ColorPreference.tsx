@@ -1,139 +1,67 @@
-/**
- * VISUAL MOCKUP ONLY - This component demonstrates the color preference widget design
- * with fake data to show how all color combinations would be displayed.
- * This file will NOT be part of the final implementation.
- */
-
 "use client"
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
-// Fake data for demonstration
-const fakeDeckCounts: Record<string, number> = {
-  // Mono colors
-  "White": 2,
-  "Blue": 1,
-  "Black": 3,
-  "Red": 5,
-  "Green": 2,
-  // Two-color pairs (Guilds)
-  "Azorius (WU)": 1,
-  "Dimir (UB)": 2,
-  "Rakdos (BR)": 1,
-  "Gruul (RG)": 3,
-  "Selesnya (WG)": 0,
-  "Orzhov (WB)": 1,
-  "Izzet (UR)": 2,
-  "Golgari (BG)": 1,
-  "Boros (WR)": 1,
-  "Simic (UG)": 0,
-  // Three-color Shards
-  "Bant (WUG)": 1,
-  "Esper (WUB)": 0,
-  "Grixis (UBR)": 1,
-  "Jund (BRG)": 2,
-  "Naya (WRG)": 0,
-  // Three-color Wedges
-  "Abzan (WBG)": 1,
-  "Jeskai (WUR)": 0,
-  "Sultai (UBG)": 1,
-  "Mardu (WBR)": 0,
-  "Temur (URG)": 1,
-  // Four-color
-  "WUBR": 0,
-  "WUBG": 1,
-  "WURG": 0,
-  "WBRG": 0,
-  "UBRG": 0,
-  // Five-color
-  "WUBRG": 1,
+interface ColorPreferenceProps {
+  deckCounts: Record<string, number>
+  playCounts: Record<string, number>
 }
 
-const fakePlayCounts: Record<string, number> = {
-  "White": 8,
-  "Blue": 3,
-  "Black": 15,
-  "Red": 25,
-  "Green": 7,
-  "Azorius (WU)": 5,
-  "Dimir (UB)": 12,
-  "Rakdos (BR)": 4,
-  "Gruul (RG)": 18,
-  "Selesnya (WG)": 0,
-  "Orzhov (WB)": 6,
-  "Izzet (UR)": 10,
-  "Golgari (BG)": 3,
-  "Boros (WR)": 5,
-  "Simic (UG)": 0,
-  "Bant (WUG)": 7,
-  "Esper (WUB)": 0,
-  "Grixis (UBR)": 8,
-  "Jund (BRG)": 14,
-  "Naya (WRG)": 0,
-  "Abzan (WBG)": 9,
-  "Jeskai (WUR)": 0,
-  "Sultai (UBG)": 6,
-  "Mardu (WBR)": 0,
-  "Temur (URG)": 11,
-  "WUBR": 0,
-  "WUBG": 4,
-  "WURG": 0,
-  "WBRG": 0,
-  "UBRG": 0,
-  "WUBRG": 8,
-}
+export default function ColorPreference({ deckCounts, playCounts }: ColorPreferenceProps) {
+  // Map color identities to their constituent colors
+  const colorIdentityToColors: Record<string, string[]> = {
+    "White": ["W"],
+    "Blue": ["U"],
+    "Black": ["B"],
+    "Red": ["R"],
+    "Green": ["G"],
+    "Azorius (WU)": ["W", "U"],
+    "Dimir (UB)": ["U", "B"],
+    "Rakdos (BR)": ["B", "R"],
+    "Gruul (RG)": ["R", "G"],
+    "Selesnya (WG)": ["W", "G"],
+    "Orzhov (WB)": ["W", "B"],
+    "Izzet (UR)": ["U", "R"],
+    "Golgari (BG)": ["B", "G"],
+    "Boros (WR)": ["W", "R"],
+    "Simic (UG)": ["U", "G"],
+    "Bant (WUG)": ["W", "U", "G"],
+    "Esper (WUB)": ["W", "U", "B"],
+    "Grixis (UBR)": ["U", "B", "R"],
+    "Jund (BRG)": ["B", "R", "G"],
+    "Naya (WRG)": ["W", "R", "G"],
+    "Abzan (WBG)": ["W", "B", "G"],
+    "Jeskai (WUR)": ["W", "U", "R"],
+    "Sultai (UBG)": ["U", "B", "G"],
+    "Mardu (WBR)": ["W", "B", "R"],
+    "Temur (URG)": ["U", "R", "G"],
+    "WUBR": ["W", "U", "B", "R"],
+    "WUBG": ["W", "U", "B", "G"],
+    "WURG": ["W", "U", "R", "G"],
+    "WBRG": ["W", "B", "R", "G"],
+    "UBRG": ["U", "B", "R", "G"],
+    "WUBRG": ["W", "U", "B", "R", "G"],
+    "Colourless": [],
+  }
 
-// Map color identities to their constituent colors
-const colorIdentityToColors: Record<string, string[]> = {
-  "White": ["W"],
-  "Blue": ["U"],
-  "Black": ["B"],
-  "Red": ["R"],
-  "Green": ["G"],
-  "Azorius (WU)": ["W", "U"],
-  "Dimir (UB)": ["U", "B"],
-  "Rakdos (BR)": ["B", "R"],
-  "Gruul (RG)": ["R", "G"],
-  "Selesnya (WG)": ["W", "G"],
-  "Orzhov (WB)": ["W", "B"],
-  "Izzet (UR)": ["U", "R"],
-  "Golgari (BG)": ["B", "G"],
-  "Boros (WR)": ["W", "R"],
-  "Simic (UG)": ["U", "G"],
-  "Bant (WUG)": ["W", "U", "G"],
-  "Esper (WUB)": ["W", "U", "B"],
-  "Grixis (UBR)": ["U", "B", "R"],
-  "Jund (BRG)": ["B", "R", "G"],
-  "Naya (WRG)": ["W", "R", "G"],
-  "Abzan (WBG)": ["W", "B", "G"],
-  "Jeskai (WUR)": ["W", "U", "R"],
-  "Sultai (UBG)": ["U", "B", "G"],
-  "Mardu (WBR)": ["W", "B", "R"],
-  "Temur (URG)": ["U", "R", "G"],
-  "WUBR": ["W", "U", "B", "R"],
-  "WUBG": ["W", "U", "B", "G"],
-  "WURG": ["W", "U", "R", "G"],
-  "WBRG": ["W", "B", "R", "G"],
-  "UBRG": ["U", "B", "R", "G"],
-  "WUBRG": ["W", "U", "B", "R", "G"],
-}
+  // Color information for display
+  const colorDisplayInfo: Record<string, { name: string; color: string; hex: string }> = {
+    "W": { name: "White", color: "white", hex: "#FFFBF5" },
+    "U": { name: "Blue", color: "blue", hex: "#0E68AB" },
+    "B": { name: "Black", color: "black", hex: "#150B00" },
+    "R": { name: "Red", color: "red", hex: "#D3202A" },
+    "G": { name: "Green", color: "green", hex: "#00733E" },
+  }
 
-// Color information for display
-const colorDisplayInfo: Record<string, { name: string; color: string; hex: string }> = {
-  "W": { name: "White", color: "white", hex: "#FFFBF5" },
-  "U": { name: "Blue", color: "blue", hex: "#0E68AB" },
-  "B": { name: "Black", color: "black", hex: "#150B00" },
-  "R": { name: "Red", color: "red", hex: "#D3202A" },
-  "G": { name: "Green", color: "green", hex: "#00733E" },
-}
-
-export default function ColorPreferenceMockup() {
   const [viewMode, setViewMode] = useState<"decks" | "plays">("decks")
-  const data = viewMode === "decks" ? fakeDeckCounts : fakePlayCounts
+  const data = viewMode === "decks" ? deckCounts : playCounts
 
-  // Calculate individual color counts (where multi-color decks contribute to each color)
+  // Calculate actual total (sum of all entries, not color fractions)
+  const actualTotal = Object.values(data).reduce((sum, count) => sum + count, 0)
+
+  // Calculate individual color counts (where multi-color decks contribute 1/n to each color)
   const colorCounts: Record<string, number> = {
     "W": 0,
     "U": 0,
@@ -144,9 +72,11 @@ export default function ColorPreferenceMockup() {
 
   Object.entries(data).forEach(([identity, count]) => {
     const colors = colorIdentityToColors[identity]
-    if (colors) {
+    if (colors && colors.length > 0) {
+      // Each color gets 1/n of the count
+      const fractionalCount = count / colors.length
       colors.forEach((color) => {
-        colorCounts[color] += count
+        colorCounts[color] += fractionalCount
       })
     }
   })
@@ -166,20 +96,21 @@ export default function ColorPreferenceMockup() {
       }
     })
 
-  const totalColors = pieData.reduce((sum, item) => sum + item.count, 0)
+  // Total for pie chart calculation (sum of fractional color counts)
+  const totalColorFractions = pieData.reduce((sum, item) => sum + item.count, 0)
 
   // Calculate pie chart segments
   // IMPORTANT: Sweep flag 1 with this arc calculation produces a proper circle
   // Center white on 12 o'clock (vertical)
   // Since SVG is rotated -90°, we need to offset so white's center aligns with 12 o'clock
   // Find white's angle first to calculate the offset
-  const whiteAngle = pieData[0] ? (pieData[0].count / totalColors) * 360 : 0
+  const whiteAngle = pieData[0] ? (pieData[0].count / totalColorFractions) * 360 : 0
   const startOffset = -whiteAngle / 2 // Offset by half of white's width to center it
   
   let currentAngle = startOffset // Start offset so white is centered at 12 o'clock
   const pieSegments = pieData.map((item) => {
-    const percentage = (item.count / totalColors) * 100
-    const angle = (item.count / totalColors) * 360
+    const percentage = (item.count / totalColorFractions) * 100
+    const angle = (item.count / totalColorFractions) * 360
     const startAngle = currentAngle
     currentAngle += angle
 
@@ -204,10 +135,10 @@ export default function ColorPreferenceMockup() {
 
   // Get specific color identity counts for bars (sorted, non-zero)
   const identityEntries = Object.entries(data)
-    .filter(([_, count]) => count > 0)
-    .sort(([_, a], [__, b]) => b - a)
+    .filter(([, count]) => count > 0)
+    .sort(([, a], [, b]) => b - a)
 
-  const maxIdentityCount = Math.max(...identityEntries.map(([_, count]) => count))
+  const maxIdentityCount = Math.max(...identityEntries.map(([, count]) => count))
 
   return (
     <Card className="mb-8">
@@ -235,13 +166,41 @@ export default function ColorPreferenceMockup() {
       <CardContent>
         {/* Pie Chart - Individual Color Preferences */}
         <div className="mb-8">
-          <h3 className="text-sm font-semibold mb-4 text-center">
-            Overall Color Preference
-          </h3>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <h3 className="text-sm font-semibold text-center">
+              Overall Color Preference
+            </h3>
+            <div
+              className="relative group"
+              title={viewMode === "decks" 
+                ? "Each deck contributes 1/n to each of its n colors. Total shows actual deck count."
+                : "Each play contributes 1/n to each of its n colors. Total shows actual play count."}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 text-slate-400 cursor-help"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-2 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                {viewMode === "decks"
+                  ? "Each deck contributes 1/n to each of its n colors. This ensures the total matches the actual number of decks."
+                  : "Each play contributes 1/n to each of its n colors. This ensures the total matches the actual number of plays."}
+              </div>
+            </div>
+          </div>
           <div className="flex items-center justify-center">
             <div className="relative">
               <svg width="300" height="300" viewBox="0 0 300 300" className="transform -rotate-90">
-                {pieSegments.map((segment, idx) => (
+                {pieSegments.map((segment) => (
                   <path
                     key={segment.color}
                     d={segment.pathData}
@@ -258,7 +217,7 @@ export default function ColorPreferenceMockup() {
                   <div className="text-xs text-slate-600">
                     {viewMode === "decks" ? "Total Decks" : "Total Plays"}
                   </div>
-                  <div className="text-2xl font-bold text-slate-900">{totalColors}</div>
+                  <div className="text-2xl font-bold text-slate-900">{actualTotal}</div>
                 </div>
               </div>
             </div>
@@ -272,7 +231,9 @@ export default function ColorPreferenceMockup() {
                   style={{ backgroundColor: item.hex }}
                 />
                 <span className="text-sm font-medium">{item.name}</span>
-                <span className="text-sm text-slate-600">({item.count})</span>
+                <span className="text-sm text-slate-600">
+                  ({item.count % 1 === 0 ? item.count.toFixed(0) : item.count.toFixed(2)})
+                </span>
               </div>
             ))}
           </div>
@@ -324,3 +285,4 @@ export default function ColorPreferenceMockup() {
     </Card>
   )
 }
+

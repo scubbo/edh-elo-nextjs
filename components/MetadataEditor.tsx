@@ -13,7 +13,7 @@ import { Edit2 } from "lucide-react"
 interface MetadataEditorProps {
   entityType: "player" | "deck" | "game"
   entityId: number
-  currentMetadata: Record<string, any> | null
+  currentMetadata: Record<string, unknown> | null
   onUpdate: () => void
 }
 
@@ -22,7 +22,7 @@ export function MetadataEditor({ entityType, entityId, currentMetadata, onUpdate
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [metadata, setMetadata] = useState<Record<string, any>>(currentMetadata || {})
+  const [metadata, setMetadata] = useState<Record<string, unknown>>(currentMetadata || {})
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL
 
@@ -61,7 +61,7 @@ export function MetadataEditor({ entityType, entityId, currentMetadata, onUpdate
     }
   }
 
-  const updateField = (key: string, value: any) => {
+  const updateField = (key: string, value: unknown) => {
     setMetadata((prev) => {
       const next = { ...prev }
       if (value === null || value === "" || (typeof value === "string" && value.trim() === "")) {
@@ -93,29 +93,39 @@ export function MetadataEditor({ entityType, entityId, currentMetadata, onUpdate
             <>
               <div className="space-y-2">
                 <Label htmlFor="colours">Colours</Label>
-                <Select
-                  value={metadata.colours || ""}
-                  onValueChange={(value) => updateField("colours", value)}
-                >
-                  <SelectTrigger id="colours">
-                    <SelectValue placeholder="Select colours" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">None</SelectItem>
-                    {MAGIC_COLOURS.map((colour) => (
-                      <SelectItem key={colour} value={colour}>
-                        {colour}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select
+                    value={typeof metadata.colours === 'string' ? metadata.colours : undefined}
+                    onValueChange={(value) => updateField("colours", value)}
+                  >
+                    <SelectTrigger id="colours" className="flex-1">
+                      <SelectValue placeholder="Select colours" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MAGIC_COLOURS.map((colour) => (
+                        <SelectItem key={colour} value={colour}>
+                          {colour}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {typeof metadata.colours === 'string' && metadata.colours && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => updateField("colours", "")}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="decklistUrl">Decklist URL</Label>
                 <Input
                   id="decklistUrl"
                   type="url"
-                  value={metadata.decklistUrl || ""}
+                  value={typeof metadata.decklistUrl === 'string' ? metadata.decklistUrl : ""}
                   onChange={(e) => updateField("decklistUrl", e.target.value)}
                   placeholder="https://..."
                 />
