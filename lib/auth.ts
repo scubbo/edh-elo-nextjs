@@ -10,26 +10,29 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 const authSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
 
-if (!authSecret) {
+// Only enforce required env vars in production or when explicitly needed
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+if (!authSecret && !isDevelopment) {
   throw new Error(
     "Missing NEXTAUTH_SECRET (or AUTH_SECRET) environment variable.",
   );
 }
 
-if (!googleClientId || !googleClientSecret) {
+if ((!googleClientId || !googleClientSecret) && !isDevelopment) {
   throw new Error("Missing Google OAuth environment variables.");
 }
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-  secret: authSecret,
+  secret: authSecret || 'development-secret-key',
   session: {
     strategy: "database",
   },
   providers: [
     GoogleProvider({
-      clientId: googleClientId,
-      clientSecret: googleClientSecret,
+      clientId: googleClientId || 'placeholder-client-id',
+      clientSecret: googleClientSecret || 'placeholder-client-secret',
     }),
   ],
   callbacks: {
