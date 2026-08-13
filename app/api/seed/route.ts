@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { google } from 'googleapis';
+import { isAdmin } from "@/lib/auth";
 import prisma from "@/lib/db/client";
 import { calculateAndStoreEloScores } from "@/lib/db/queries";
 
@@ -21,6 +22,14 @@ export type PlayerDeckNames = {
 
 export async function POST() {
     try {
+        // Check admin authorization
+        if (!(await isAdmin())) {
+            return NextResponse.json(
+                { error: 'Unauthorized - Admin access required' },
+                { status: 403 }
+            );
+        }
+
         const data = await readGoogleSheet();
         // Parse data and preserve original index for ordering games on the same date
         const parsedDataWithIndex = data.map((row, index) => ({
