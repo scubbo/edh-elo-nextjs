@@ -1,0 +1,280 @@
+import { google } from 'googleapis';
+
+import prisma from '@/lib/db/client';
+import { backCalculateAllEloScores, calculateAndStoreEloScores } from '@/lib/db/queries';
+import {
+  buildExistingGameKeys,
+  needsEloBackCalculation,
+  parseSheetRows,
+  selectNewGames,
+  type ParsedGameInfo,
+  type PlayerDeckNames
+} from '@/lib/sheet-sync';
+
+export type SheetImportResult = {
+  rowsRead: number,
+  gamesParsed: number,
+  gamesInserted: number,
+  gamesAlreadyStored: number,
+  eloBackCalculated: boolean
+}
+
+/**
+ * Brings the database up to date with the spreadsheet.
+ *
+ * Safe to run repeatedly: games already stored are recognised and skipped, so a
+ * run that fails partway is corrected by the next one.
+ */
+export async function importGamesFromSheet(): Promise<SheetImportResult> {
+  const rows = await readGoogleSheet();
+  const parsedGames = parseSheetRows(rows);
+
+  const [storedGames, decks] = await Promise.all([
+    prisma.game.findMany({
+      select: { date: true, deckIds: true, winningDeckIds: true, description: true }
+    }),
+    prisma.deck.findMany({
+      select: { id: true, name: true, owner: { select: { name: true } } }
+    })
+  ]);
+
+  const deckIdentities = new Map<number, PlayerDeckNames>(
+    decks.map((deck) => [deck.id, { playerName: deck.owner.name, deckName: deck.name }])
+  );
+
+  const newGames = selectNewGames(
+    parsedGames,
+    buildExistingGameKeys(storedGames, deckIdentities)
+  );
+
+  const latestStoredGameDate = storedGames.reduce<Date | null>(
+    (latest, game) => (latest === null || game.date > latest ? game.date : latest),
+    null
+  );
+  // A back-dated row invalidates every rating computed after it, so scoring is
+  // deferred to a single replay of the whole history rather than done per game.
+  const eloBackCalculated = needsEloBackCalculation(newGames, latestStoredGameDate);
+
+  for (const game of newGames) {
+    await insertGame(game, { scoreImmediately: !eloBackCalculated });
+  }
+
+  if (eloBackCalculated) {
+    await backCalculateAllEloScores();
+  }
+
+  return {
+    rowsRead: rows.length,
+    gamesParsed: parsedGames.length,
+    gamesInserted: newGames.length,
+    gamesAlreadyStored: parsedGames.length - newGames.length,
+    eloBackCalculated
+  };
+}
+
+async function insertGame(
+  parsedGameInfo: ParsedGameInfo,
+  { scoreImmediately }: { scoreImmediately: boolean }
+) {
+  const processedParticipants = await Promise.all(
+    parsedGameInfo.participants.map(async (participant) => {
+      const player = await findOrCreatePlayer(participant.playerName);
+      const deck = await findOrCreateDeck(participant.deckName, player.id);
+      return {
+        playerId: player.id,
+        playerName: player.name,
+        deckId: deck.id,
+        deckName: deck.name
+      };
+    })
+  );
+
+  const processedWinners = parsedGameInfo.winners.map((winner) => {
+    const processedParticipant = processedParticipants.find(
+      p => p.playerName === winner.playerName && p.deckName === winner.deckName
+    );
+    if (!processedParticipant) {
+      throw new Error(`Participant ${winner.playerName} ${winner.deckName} not found in processed participants`);
+    }
+    return processedParticipant;
+  });
+
+  const [winType, format] = await Promise.all([
+    findOrCreateWinType(parsedGameInfo.winType),
+    findOrCreateFormat(parsedGameInfo.format)
+  ]);
+
+  const newGame = await prisma.game.create({
+    data: {
+      date: parsedGameInfo.date,
+      deckIds: processedParticipants.map(p => p.deckId),
+      winningDeckIds: processedWinners.map(p => p.deckId),
+      numberOfTurns: parsedGameInfo.numberOfTurns,
+      firstPlayerOutTurn: parsedGameInfo.firstPlayerOutTurn,
+      winTypeId: winType.id,
+      formatId: format.id,
+      description: parsedGameInfo.description || 'No description'
+    }
+  });
+
+  // Decks only appear in the UI once they have an ELO score
+  if (scoreImmediately) {
+    await calculateAndStoreEloScores(newGame.id);
+  }
+
+  console.log(`Imported game ${newGame.id} for date ${newGame.date.toISOString()}, deckIds: ${newGame.deckIds.join(', ')}, winningDeckIds: ${newGame.winningDeckIds.join(', ')}, description: ${newGame.description}`);
+}
+
+async function findOrCreatePlayer(name: string) {
+  const existing = await prisma.player.findFirst({
+    where: { name },
+    select: { id: true, name: true }
+  });
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    const created = await prisma.player.create({
+      data: { name },
+      select: { id: true, name: true }
+    });
+    console.log(`Created new player: ${created.name} (id: ${created.id})`);
+    return created;
+  } catch (error: unknown) {
+    const concurrentlyCreated = await findExistingAfterUniqueViolation(
+      error,
+      () => prisma.player.findFirst({ where: { name }, select: { id: true, name: true } })
+    );
+    if (!concurrentlyCreated) {
+      throw new Error(`Player not found: ${name}`);
+    }
+    return concurrentlyCreated;
+  }
+}
+
+async function findOrCreateDeck(name: string, ownerId: number) {
+  const existing = await prisma.deck.findFirst({
+    where: { name, ownerId },
+    select: { id: true, name: true }
+  });
+  if (existing) {
+    return existing;
+  }
+
+  try {
+    const created = await prisma.deck.create({
+      data: { name, ownerId },
+      select: { id: true, name: true }
+    });
+    console.log(`Created new deck: ${created.name} (id: ${created.id})`);
+    return created;
+  } catch (error: unknown) {
+    const concurrentlyCreated = await findExistingAfterUniqueViolation(
+      error,
+      () => prisma.deck.findFirst({ where: { name, ownerId }, select: { id: true, name: true } })
+    );
+    if (!concurrentlyCreated) {
+      throw new Error(`Deck not found: ${name} for owner ${ownerId}`);
+    }
+    return concurrentlyCreated;
+  }
+}
+
+async function findOrCreateWinType(name: string) {
+  const existing = await prisma.winType.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' } }
+  });
+  if (existing) {
+    return existing;
+  }
+  const created = await prisma.winType.create({ data: { name } });
+  console.log(`Created missing win type: ${name}`);
+  return created;
+}
+
+async function findOrCreateFormat(name: string) {
+  const existing = await prisma.format.findFirst({
+    where: { name: { equals: name, mode: 'insensitive' } }
+  });
+  if (existing) {
+    return existing;
+  }
+  const created = await prisma.format.create({ data: { name } });
+  console.log(`Created missing format: ${name}`);
+  return created;
+}
+
+/**
+ * Recovers from another run creating the same record between our lookup and our
+ * insert. Any other failure is the caller's to handle.
+ */
+async function findExistingAfterUniqueViolation<T>(
+  error: unknown,
+  find: () => Promise<T | null>
+): Promise<T | null> {
+  const isUniqueViolation =
+    error && typeof error === 'object' && 'code' in error && error.code === 'P2002';
+  if (!isUniqueViolation) {
+    throw error;
+  }
+  console.log('Record was created concurrently; using the existing one');
+  return find();
+}
+
+async function readGoogleSheet() {
+  try {
+    // Parse the credentials from environment variable
+    const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS || '{}');
+    const spreadsheetId = process.env.SPREADSHEET_ID;
+
+    if (!credentials || !spreadsheetId) {
+      throw new Error('Missing required environment variables');
+    }
+
+    // Create auth client
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    // Create sheets client
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // First, get the list of available sheets
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId,
+    });
+
+    const sheetNames = spreadsheet.data.sheets?.map(sheet => sheet.properties?.title).filter(Boolean) || [];
+    console.log('Available sheets:', sheetNames);
+
+    // Read from all sheets sequentially to preserve order
+    let combinedData: string[][] = [];
+
+    for (let index = 0; index < sheetNames.length; index++) {
+      const sheetName = sheetNames[index];
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!A1:Z`,
+      });
+
+      const sheetData = response.data.values || [];
+      if (index === 0) {
+        // First sheet: include all data (including header)
+        combinedData = [...sheetData];
+      } else {
+        // Subsequent sheets: skip header row
+        if (sheetData.length > 1) {
+          combinedData = [...combinedData, ...sheetData.slice(1)];
+        }
+      }
+    }
+
+    console.log(`Read data from ${sheetNames.length} sheets, total rows: ${combinedData.length}`);
+    return combinedData;
+  } catch (error) {
+    console.error('Error reading Google Sheet:', error);
+    throw error;
+  }
+}
