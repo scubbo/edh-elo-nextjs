@@ -111,11 +111,28 @@ export function buildExistingGameKeys(
   return keys;
 }
 
+/**
+ * Narrows the spreadsheet down to the games not already stored.
+ *
+ * Rows that key identically to each other collapse to one game. The
+ * spreadsheet holds no game identifier, so a row duplicated within it is
+ * indistinguishable from a genuine repeat of the same matchup on the same day,
+ * and inventing a second game is the worse of the two mistakes.
+ */
 export function selectNewGames(
   parsedGames: ParsedGameInfo[],
   existingKeys: Set<string>
 ): ParsedGameInfo[] {
-  return parsedGames.filter((game) => !existingKeys.has(parsedGameKey(game)));
+  const seenKeys = new Set(existingKeys);
+
+  return parsedGames.filter((game) => {
+    const key = parsedGameKey(game);
+    if (seenKeys.has(key)) {
+      return false;
+    }
+    seenKeys.add(key);
+    return true;
+  });
 }
 
 /**

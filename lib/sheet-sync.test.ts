@@ -230,6 +230,14 @@ describe("selectNewGames", () => {
     expect(selectNewGames(parsed, keysFor([]))).toHaveLength(1);
   });
 
+  it("collapses spreadsheet rows indistinguishable from one another", () => {
+    // The spreadsheet carries no game identifier, so a row duplicated within it
+    // cannot be told apart from a genuine repeat of the same matchup.
+    const parsed = parseSheetRows([row(), row()]);
+
+    expect(selectNewGames(parsed, keysFor([]))).toHaveLength(1);
+  });
+
   it("ignores seat ordering when matching against stored games", () => {
     const parsed = parseSheetRows([
       row({ 1: "Carol", 2: "Cromat", 5: "Alice", 6: "Atraxa", 13: "Alice", 14: "Atraxa" }),
