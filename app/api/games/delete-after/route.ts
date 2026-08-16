@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server'
+import { isAdmin } from '@/lib/auth'
 import prisma from '@/lib/db/client'
 
 export async function POST(request: Request) {
   try {
+    // Check admin authorization
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const { gameId } = body
 
