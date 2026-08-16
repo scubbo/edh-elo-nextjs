@@ -31,7 +31,7 @@ GOOGLE_CLIENT_SECRET=
 DATABASE_URL=postgres://...
 GOOGLE_SHEETS_CREDENTIALS= # service account JSON, for the spreadsheet import
 SPREADSHEET_ID=           # the spreadsheet games are recorded in
-CRON_SECRET=              # `openssl rand -base64 32`, for the scheduled import
+CRON_SECRET=              # `openssl rand -hex 32`, for the scheduled import
 ```
 
 After setting the variables:
