@@ -23,25 +23,57 @@ export type ExistingGame = {
 }
 
 /**
- * Parses every row of the spreadsheet, discarding those that do not describe a
- * game (the header, and any row too incomplete to interpret).
+ * A row that does not describe a game, and why. Reported rather than dropped
+ * silently: nothing watches a scheduled run, so an unreadable row is invisible
+ * unless it is recorded somewhere an admin can read it.
+ */
+export type SheetRowProblem = {
+  /** Position in the rows handed to parseSheetRows, for locating the row. */
+  rowIndex: number,
+  reason: string,
+  cells: string[]
+}
+
+/** Either the game a row describes, or why it does not describe one. */
+export type RowOutcome =
+  | { game: ParsedGameInfo, problem?: undefined }
+  | { game?: undefined, problem: string }
+
+export type SheetParseResult = {
+  games: ParsedGameInfo[],
+  problems: SheetRowProblem[]
+}
+
+/**
+ * Parses every row of the spreadsheet, separating the games from the rows that
+ * do not describe one (the header, and any row too incomplete or inconsistent
+ * to interpret).
  *
  * Games are ordered by date so that ELO can be accumulated in the order the
  * games were played. Games sharing a date fall back to the order they appear in
  * the sheet, which is the only signal available for sequencing them.
  */
-export function parseSheetRows(rows: string[][]): ParsedGameInfo[] {
-  return rows
-    .map((row, sheetPosition) => ({ parsed: parseGameInfo(row), sheetPosition }))
-    .filter((entry): entry is { parsed: ParsedGameInfo, sheetPosition: number } =>
-      entry.parsed !== null)
-    .sort((a, b) => {
-      const dateDifference = a.parsed.date.getTime() - b.parsed.date.getTime();
-      return dateDifference !== 0
-        ? dateDifference
-        : a.sheetPosition - b.sheetPosition;
-    })
-    .map((entry) => entry.parsed);
+export function parseSheetRows(rows: string[][]): SheetParseResult {
+  const games: { parsed: ParsedGameInfo, sheetPosition: number }[] = [];
+  const problems: SheetRowProblem[] = [];
+
+  rows.forEach((cells, sheetPosition) => {
+    const outcome = parseGameInfo(cells);
+    if (outcome.problem !== undefined) {
+      problems.push({ rowIndex: sheetPosition, reason: outcome.problem, cells });
+      return;
+    }
+    games.push({ parsed: outcome.game, sheetPosition });
+  });
+
+  games.sort((a, b) => {
+    const dateDifference = a.parsed.date.getTime() - b.parsed.date.getTime();
+    return dateDifference !== 0
+      ? dateDifference
+      : a.sheetPosition - b.sheetPosition;
+  });
+
+  return { games: games.map((entry) => entry.parsed), problems };
 }
 
 /**
@@ -162,11 +194,10 @@ export function eloReplayCutoff(
   }, null);
 }
 
-export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
+export function parseGameInfo(sheetRow: string[]): RowOutcome {
   // Validate that we have the minimum required data
   if (!sheetRow[0] || sheetRow.length < 15) {
-    console.error(`❌ SKIPPING ROW - insufficient data (length: ${sheetRow.length}): ${JSON.stringify(sheetRow)}`);
-    return null;
+    return { problem: `Row has insufficient data: ${sheetRow.length} column(s), at least 15 needed` };
   }
 
   // Ensure we have at least 20 elements, padding with empty strings if needed
@@ -179,8 +210,7 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
   const dateStr = data[0];
   const dateParts = dateStr.split('/');
   if (dateParts.length !== 3) {
-    console.warn(`Skipping row with invalid date format: ${dateStr}`);
-    return null;
+    return { problem: `Unreadable date "${dateStr}": expected MM/DD/YY` };
   }
 
   const month = parseInt(dateParts[0], 10) - 1; // Month is 0-indexed
@@ -194,8 +224,7 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
   // Using noon UTC ensures the date displays correctly in all timezones
   const date = new Date(Date.UTC(fullYear, month, day, 12, 0, 0));
   if (isNaN(date.getTime())) {
-    console.warn(`Skipping row with invalid date: ${dateStr}`);
-    return null;
+    return { problem: `Unreadable date "${dateStr}"` };
   }
 
   const partialResponse: Omit<ParsedGameInfo, 'winners'> = {
@@ -224,8 +253,9 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
 
   // Validate that we have the required data
   if (!data[13] || !data[14]) {
-    console.error(`❌ SKIPPING ROW - missing winner data (data[13]="${data[13]}", data[14]="${data[14]}"): ${JSON.stringify(sheetRow)}`);
-    return null; // Return null to skip this row
+    return {
+      problem: `No winner recorded: winning player is "${data[13]}" and winning deck is "${data[14]}"`
+    };
   }
 
   if (!(data[13].startsWith('Tie'))) {
@@ -237,7 +267,10 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
     const winnerPlayerNames = data[13].replace('Tie (', '').replace(')', '').split('; ');
     const winnerDeckNames = data[14].replace('Tie (', '').replace(')', '').split('; ');
     if (winnerPlayerNames.length !== winnerDeckNames.length) {
-      throw new Error('Mismatch between winner player names and deck names');
+      return {
+        problem: `Tie names ${winnerPlayerNames.length} winning player(s) but ` +
+          `${winnerDeckNames.length} winning deck(s)`
+      };
     }
 
     for (let i = 0; i < winnerPlayerNames.length; i++) {
@@ -261,12 +294,13 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
     const described = unmatchedWinners
       .map(w => `${w.playerName} / ${w.deckName}`)
       .join(', ');
-    console.error(
-      `❌ SKIPPING ROW - winner(s) ${described} not among the participants ` +
-      `${JSON.stringify(partialResponse.participants)}: ${JSON.stringify(sheetRow)}`
-    );
-    return null;
+    const played = partialResponse.participants
+      .map(p => `${p.playerName} / ${p.deckName}`)
+      .join(', ');
+    return {
+      problem: `Winner(s) ${described} did not play in this game; the seats are ${played}`
+    };
   }
 
-  return {...partialResponse, winners};
+  return { game: {...partialResponse, winners} };
 }

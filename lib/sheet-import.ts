@@ -8,8 +8,18 @@ import {
   parseSheetRows,
   selectNewGames,
   type ParsedGameInfo,
-  type PlayerDeckNames
+  type PlayerDeckNames,
+  type SheetRowProblem
 } from '@/lib/sheet-sync';
+
+/** A row the import could not use, located in the sheet it came from. */
+export type SkippedRow = {
+  sheetName: string,
+  /** Row number as the spreadsheet shows it, so the row can be found and fixed. */
+  rowNumber: number,
+  reason: string,
+  cells: string[]
+}
 
 export type SheetImportResult = {
   rowsRead: number,
@@ -17,7 +27,8 @@ export type SheetImportResult = {
   gamesInserted: number,
   gamesAlreadyStored: number,
   eloReplayedFrom: Date | null,
-  gamesRescored: number
+  gamesRescored: number,
+  skippedRows: SkippedRow[]
 }
 
 /**
@@ -28,7 +39,14 @@ export type SheetImportResult = {
  */
 export async function importGamesFromSheet(): Promise<SheetImportResult> {
   const rows = await readGoogleSheet();
-  const parsedGames = parseSheetRows(rows);
+  const { games: parsedGames, problems } = parseSheetRows(rows.map((row) => row.cells));
+  const skippedRows = problems.map((problem) => locateProblem(problem, rows));
+
+  for (const skipped of skippedRows) {
+    console.warn(
+      `Skipped ${skipped.sheetName} row ${skipped.rowNumber}: ${skipped.reason}`
+    );
+  }
 
   const [storedGames, decks] = await Promise.all([
     prisma.game.findMany({
@@ -70,8 +88,20 @@ export async function importGamesFromSheet(): Promise<SheetImportResult> {
     gamesInserted: newGames.length,
     gamesAlreadyStored: parsedGames.length - newGames.length,
     eloReplayedFrom: replayFrom,
-    gamesRescored
+    gamesRescored,
+    skippedRows
   };
+}
+
+/**
+ * Puts a problem back where it came from. Rows are flattened across the
+ * spreadsheet's tabs before parsing, so the parser can only report a position
+ * in that flattened list; the sheet name and row number a human needs are
+ * recovered here.
+ */
+function locateProblem(problem: SheetRowProblem, rows: SheetRow[]): SkippedRow {
+  const { sheetName, rowNumber } = rows[problem.rowIndex];
+  return { sheetName, rowNumber, reason: problem.reason, cells: problem.cells };
 }
 
 async function insertGame(
@@ -224,7 +254,14 @@ async function findExistingAfterUniqueViolation<T>(
   return find();
 }
 
-async function readGoogleSheet() {
+/** A spreadsheet row, tagged with where in the spreadsheet it was read from. */
+type SheetRow = {
+  sheetName: string,
+  rowNumber: number,
+  cells: string[]
+}
+
+async function readGoogleSheet(): Promise<SheetRow[]> {
   try {
     // Parse the credentials from environment variable
     const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS || '{}');
@@ -252,25 +289,24 @@ async function readGoogleSheet() {
     console.log('Available sheets:', sheetNames);
 
     // Read from all sheets sequentially to preserve order
-    let combinedData: string[][] = [];
+    const combinedData: SheetRow[] = [];
 
-    for (let index = 0; index < sheetNames.length; index++) {
-      const sheetName = sheetNames[index];
+    for (const sheetName of sheetNames) {
       const response = await sheets.spreadsheets.values.get({
         spreadsheetId,
         range: `${sheetName}!A1:Z`,
       });
 
       const sheetData = response.data.values || [];
-      if (index === 0) {
-        // First sheet: include all data (including header)
-        combinedData = [...sheetData];
-      } else {
-        // Subsequent sheets: skip header row
-        if (sheetData.length > 1) {
-          combinedData = [...combinedData, ...sheetData.slice(1)];
-        }
-      }
+      // Every tab opens with a header row, which describes no game. Dropping it
+      // here keeps it from being reported as an unreadable row on every run.
+      sheetData.slice(1).forEach((cells, index) => {
+        combinedData.push({
+          sheetName: sheetName as string,
+          rowNumber: index + 2,
+          cells
+        });
+      });
     }
 
     console.log(`Read data from ${sheetNames.length} sheets, total rows: ${combinedData.length}`);
