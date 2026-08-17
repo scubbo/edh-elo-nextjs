@@ -14,6 +14,34 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// What one run of the spreadsheet import did, and what it could not do.
+/// A scheduled run has no audience, so this is the only record of a row the
+/// import had to skip or an error that ended it.
+model ImportRun {
+  id             Int       @id @default(autoincrement())
+  startedAt      DateTime  @default(now())
+  /// Unset while the run is in progress, and on a run that never reported back.
+  finishedAt     DateTime?
+  /// What asked for the run: the daily schedule, or an admin pressing a button.
+  trigger        String
+  rowsRead       Int       @default(0)
+  /// Stored games discarded because the spreadsheet no longer agreed with them.
+  gamesDeleted   Int       @default(0)
+  gamesInserted  Int       @default(0)
+  /// Games the run ran out of time to import, left for the next run.
+  gamesRemaining Int       @default(0)
+  /// The date of the earliest game rebuilt, when the run rebuilt any history.
+  rebuiltFrom    DateTime?
+  /// Rows that did not describe a game, as {sheetName, rowNumber, reason, cells}.
+  skippedRows    Json      @default("[]")
+  /// Problems with data already stored, found while comparing it to the sheet.
+  warnings       Json      @default("[]")
+  /// The message from an error that ended the run before it finished.
+  error          String?
+
+  @@index([startedAt])
+}
+
 model Player {
   id       Int     @id @default(autoincrement())
   name     String  @unique

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { isAdmin } from "@/lib/auth";
-import { importGamesFromSheet } from "@/lib/sheet-import";
+import { describeImportResult, importGamesFromSheet } from "@/lib/sheet-import";
 
 // A run scales with the size of the spreadsheet, well past the default limit
 export const maxDuration = 60;
@@ -16,16 +16,20 @@ export async function POST() {
             );
         }
 
-        const result = await importGamesFromSheet();
+        const result = await importGamesFromSheet('manual');
+
+        if (result === null) {
+            return NextResponse.json(
+                { error: 'An import is already running; nothing was done' },
+                { status: 409 }
+            );
+        }
 
         return NextResponse.json({
-            message: `Imported ${result.gamesInserted} new game(s) from ${result.gamesParsed} spreadsheet row(s); ` +
-                `${result.gamesAlreadyStored} already stored` +
-                (result.eloBackCalculated ? '. ELO recalculated for all games' : ''),
+            message: describeImportResult(result),
             ...result
         });
     } catch (error) {
-        console.error('Seeding error:', error);
         return NextResponse.json(
         { error: `Seeding failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
         { status: 500 }
