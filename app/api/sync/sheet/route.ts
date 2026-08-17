@@ -29,11 +29,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await importGamesFromSheet();
+    const result = await importGamesFromSheet('cron');
     console.log('Scheduled sheet import finished', result);
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Scheduled sheet import failed:', error);
     return NextResponse.json(
       { error: `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
       { status: 500 }

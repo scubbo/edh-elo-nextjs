@@ -3,6 +3,11 @@ import { google } from 'googleapis';
 import prisma from '@/lib/db/client';
 import { backCalculateEloScoresFrom, calculateAndStoreEloScores } from '@/lib/db/queries';
 import {
+  recordFailedImport,
+  recordSuccessfulImport,
+  type ImportTrigger
+} from '@/lib/import-log';
+import {
   buildExistingGameKeys,
   eloReplayCutoff,
   parseSheetRows,
@@ -28,16 +33,34 @@ export type SheetImportResult = {
   gamesAlreadyStored: number,
   eloReplayedFrom: Date | null,
   gamesRescored: number,
-  skippedRows: SkippedRow[]
+  skippedRows: SkippedRow[],
+  /** Problems with data already stored, found while comparing it to the sheet. */
+  warnings: string[]
 }
 
 /**
- * Brings the database up to date with the spreadsheet.
+ * Brings the database up to date with the spreadsheet, and records what the run
+ * did where an admin can read it.
  *
  * Safe to run repeatedly: games already stored are recognised and skipped, so a
  * run that fails partway is corrected by the next one.
  */
-export async function importGamesFromSheet(): Promise<SheetImportResult> {
+export async function importGamesFromSheet(
+  trigger: ImportTrigger
+): Promise<SheetImportResult> {
+  let result: SheetImportResult;
+  try {
+    result = await runImport();
+  } catch (error) {
+    await recordFailedImport(trigger, error);
+    throw error;
+  }
+
+  await recordSuccessfulImport(trigger, result);
+  return result;
+}
+
+async function runImport(): Promise<SheetImportResult> {
   const rows = await readGoogleSheet();
   const { games: parsedGames, problems } = parseSheetRows(rows.map((row) => row.cells));
   const skippedRows = problems.map((problem) => locateProblem(problem, rows));
@@ -61,10 +84,13 @@ export async function importGamesFromSheet(): Promise<SheetImportResult> {
     decks.map((deck) => [deck.id, { playerName: deck.owner.name, deckName: deck.name }])
   );
 
-  const newGames = selectNewGames(
-    parsedGames,
-    buildExistingGameKeys(storedGames, deckIdentities)
-  );
+  const { keys: existingKeys, problems: warnings } =
+    buildExistingGameKeys(storedGames, deckIdentities);
+  const newGames = selectNewGames(parsedGames, existingKeys);
+
+  for (const warning of warnings) {
+    console.warn(warning);
+  }
 
   const latestStoredGameDate = storedGames.reduce<Date | null>(
     (latest, game) => (latest === null || game.date > latest ? game.date : latest),
@@ -89,7 +115,8 @@ export async function importGamesFromSheet(): Promise<SheetImportResult> {
     gamesAlreadyStored: parsedGames.length - newGames.length,
     eloReplayedFrom: replayFrom,
     gamesRescored,
-    skippedRows
+    skippedRows,
+    warnings
   };
 }
 

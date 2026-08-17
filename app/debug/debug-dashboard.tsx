@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Loader2, CheckCircle, XCircle, Database, Trash2, AlertTriangle, RefreshCw, Calendar } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -326,6 +327,9 @@ export function DebugDashboard() {
                 variant="outline"
               >
                 {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Run Seeding"}
+              </Button>
+              <Button asChild className="mt-2 w-full" variant="ghost">
+                <Link href="/debug/imports">View import history</Link>
               </Button>
             </CardContent>
           </Card>

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   buildExistingGameKeys,
@@ -60,20 +60,6 @@ function problemFrom(cells: string[]): string {
   expect(outcome.game).toBeUndefined();
   return outcome.problem!;
 }
-
-// Stored games that can no longer be identified are reported rather than
-// dropped silently, since nothing watches a scheduled run. Capture that
-// reporting so the assertions below can check it and it stays out of the test
-// output.
-const consoleWarn = vi.spyOn(console, "warn");
-
-beforeEach(() => {
-  consoleWarn.mockImplementation(() => {});
-});
-
-afterEach(() => {
-  consoleWarn.mockClear();
-});
 
 describe("parseGameInfo", () => {
   it("parses a single-winner row", () => {
@@ -289,7 +275,7 @@ describe("selectNewGames", () => {
   });
 
   const keysFor = (games: ExistingGame[]) =>
-    buildExistingGameKeys(games, deckIdentities);
+    buildExistingGameKeys(games, deckIdentities).keys;
 
   it("excludes a game that is already stored", () => {
     const { games: parsed } = parseSheetRows([row()]);
@@ -351,12 +337,21 @@ describe("selectNewGames", () => {
   });
 
   it("reports a stored game whose decks can no longer be identified", () => {
-    const keys = keysFor([existing({ deckIds: [1, 2, 99] })]);
+    // Such a game cannot be matched against the sheet, so the sheet's copy of
+    // it looks new and would be inserted a second time. Reporting it is the
+    // only warning an admin gets that the two are drifting apart.
+    const { keys, problems } = buildExistingGameKeys(
+      [existing({ deckIds: [1, 2, 99] })],
+      deckIdentities,
+    );
 
     expect(keys.size).toBe(0);
-    expect(consoleWarn).toHaveBeenCalledWith(
-      expect.stringContaining("unknown deck ids 99"),
-    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("99");
+  });
+
+  it("reports nothing when every stored deck is still identifiable", () => {
+    expect(buildExistingGameKeys([existing()], deckIdentities).problems).toEqual([]);
   });
 });
 

@@ -113,8 +113,9 @@ export function parsedGameKey(game: ParsedGameInfo): string {
 export function buildExistingGameKeys(
   games: ExistingGame[],
   deckIdentities: Map<number, PlayerDeckNames>
-): Set<string> {
+): { keys: Set<string>, problems: string[] } {
   const keys = new Set<string>();
+  const problems: string[] = [];
 
   for (const game of games) {
     const resolve = (deckIds: number[]) =>
@@ -123,11 +124,14 @@ export function buildExistingGameKeys(
     const winners = resolve(game.winningDeckIds);
 
     if (participants.includes(undefined) || winners.includes(undefined)) {
-      const known = [...game.deckIds, ...game.winningDeckIds]
-        .filter((deckId) => !deckIdentities.has(deckId));
-      console.warn(
-        `Stored game on ${game.date.toISOString()} references unknown deck ids ` +
-        `${known.join(', ')} and cannot be matched against the spreadsheet`
+      const unknown = [...new Set(
+        [...game.deckIds, ...game.winningDeckIds]
+          .filter((deckId) => !deckIdentities.has(deckId))
+      )];
+      problems.push(
+        `Stored game on ${game.date.toISOString().slice(0, 10)} references deck ` +
+        `id(s) ${unknown.join(', ')} that no longer exist, so it cannot be ` +
+        `matched against the spreadsheet and may be imported again`
       );
       continue;
     }
@@ -140,7 +144,7 @@ export function buildExistingGameKeys(
     ));
   }
 
-  return keys;
+  return { keys, problems };
 }
 
 /**

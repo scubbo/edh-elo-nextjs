@@ -16,7 +16,7 @@ export async function POST() {
             );
         }
 
-        const result = await importGamesFromSheet();
+        const result = await importGamesFromSheet('manual');
 
         return NextResponse.json({
             message: `Imported ${result.gamesInserted} new game(s) from ${result.gamesParsed} spreadsheet row(s); ` +
@@ -24,11 +24,13 @@ export async function POST() {
                 (result.eloReplayedFrom
                     ? `. ELO recalculated for ${result.gamesRescored} game(s) from ` +
                       `${result.eloReplayedFrom.toISOString()} onwards`
+                    : '') +
+                (result.skippedRows.length > 0
+                    ? `. ${result.skippedRows.length} row(s) skipped - see /debug/imports`
                     : ''),
             ...result
         });
     } catch (error) {
-        console.error('Seeding error:', error);
         return NextResponse.json(
         { error: `Seeding failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
         { status: 500 }
