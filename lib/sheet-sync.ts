@@ -238,5 +238,25 @@ export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {
     }
   }
 
+  // A winner cell has to name a seat from the same row, or the win cannot be
+  // attributed to a deck. Several players share a first name and are told apart
+  // by surname initial, so a cell naming the bare first name is ambiguous and
+  // guessing would credit the wrong deck.
+  const unmatchedWinners = winners.filter((winner) =>
+    !partialResponse.participants.some(
+      p => p.playerName === winner.playerName && p.deckName === winner.deckName
+    )
+  );
+  if (unmatchedWinners.length > 0) {
+    const described = unmatchedWinners
+      .map(w => `${w.playerName} / ${w.deckName}`)
+      .join(', ');
+    console.error(
+      `❌ SKIPPING ROW - winner(s) ${described} not among the participants ` +
+      `${JSON.stringify(partialResponse.participants)}: ${JSON.stringify(sheetRow)}`
+    );
+    return null;
+  }
+
   return {...partialResponse, winners};
 }

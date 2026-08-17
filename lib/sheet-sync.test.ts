@@ -129,6 +129,41 @@ describe("parseGameInfo", () => {
     );
   });
 
+  it("rejects a row whose winner is not among the participants, reporting the row", () => {
+    // Several players in this group share a first name and are told apart by
+    // surname initial. A winner cell naming a player who did not play cannot be
+    // resolved to a deck, and guessing would credit the wrong one.
+    expect(parseGameInfo(row({ 13: "Dave", 14: "Daretti" }))).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("not among the participants"),
+    );
+  });
+
+  it("rejects a row whose winner played a deck nobody brought", () => {
+    expect(parseGameInfo(row({ 13: "Alice", 14: "Daretti" }))).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("not among the participants"),
+    );
+  });
+
+  it("rejects a tie where one of the winners is not a participant", () => {
+    expect(
+      parseGameInfo(row({ 13: "Tie (Alice; Dave)", 14: "Tie (Atraxa; Daretti)" })),
+    ).toBeNull();
+    expect(consoleError).toHaveBeenCalledWith(
+      expect.stringContaining("not among the participants"),
+    );
+  });
+
+  it("accepts a tie whose winners are all participants", () => {
+    const parsed = parseGameInfo(
+      row({ 13: "Tie (Alice; Bob)", 14: "Tie (Atraxa; Bolas)" }),
+    );
+
+    expect(parsed).not.toBeNull();
+    expect(parsed!.winners).toHaveLength(2);
+  });
+
   it("throws when tie winners and tie decks disagree in count", () => {
     expect(() =>
       parseGameInfo(row({ 13: "Tie (Alice; Bob)", 14: "Tie (Atraxa)" })),
@@ -181,6 +216,20 @@ describe("parseSheetRows", () => {
       utc(2024, 1, 1),
       utc(2024, 2, 1),
       utc(2024, 3, 1),
+    ]);
+  });
+
+  it("keeps the usable games when one row names an unknown winner", () => {
+    // A single unusable row must not cost us the rest of the spreadsheet.
+    const rows = [
+      row({ 0: "01/15/24" }),
+      row({ 0: "01/16/24", 13: "Dave", 14: "Daretti" }),
+      row({ 0: "01/17/24" }),
+    ];
+
+    expect(parseSheetRows(rows).map((game) => game.date)).toEqual([
+      utc(2024, 1, 15),
+      utc(2024, 1, 17),
     ]);
   });
 
