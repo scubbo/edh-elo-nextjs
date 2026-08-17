@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildExistingGameKeys,
-  eloReplayCutoff,
+  describeStoredGames,
   parseGameInfo,
   parseSheetRows,
-  selectNewGames,
-  type ExistingGame,
+  rebuildFromIndex,
   type ParsedGameInfo,
   type PlayerDeckNames,
+  type StoredGame,
 } from "@/lib/sheet-sync";
 
 /**
@@ -258,154 +257,222 @@ describe("parseSheetRows", () => {
   });
 });
 
-describe("selectNewGames", () => {
-  const deckIdentities = new Map<number, PlayerDeckNames>([
-    [1, { playerName: "Alice", deckName: "Atraxa" }],
-    [2, { playerName: "Bob", deckName: "Bolas" }],
-    [3, { playerName: "Carol", deckName: "Cromat" }],
-    [4, { playerName: "Dave", deckName: "Daretti" }],
-  ]);
+const deckIdentities = new Map<number, PlayerDeckNames>([
+  [1, { playerName: "Alice", deckName: "Atraxa" }],
+  [2, { playerName: "Bob", deckName: "Bolas" }],
+  [3, { playerName: "Carol", deckName: "Cromat" }],
+  [4, { playerName: "Dave", deckName: "Daretti" }],
+]);
 
-  const existing = (overrides: Partial<ExistingGame> = {}): ExistingGame => ({
-    date: utc(2024, 1, 15),
-    deckIds: [1, 2, 3],
-    winningDeckIds: [1],
-    description: "A close one",
-    ...overrides,
+/** A stored game matching the spreadsheet row the `row` helper produces. */
+const stored = (overrides: Partial<StoredGame> = {}): StoredGame => ({
+  date: utc(2024, 1, 15),
+  deckIds: [1, 2, 3],
+  winningDeckIds: [1],
+  numberOfTurns: 12,
+  firstPlayerOutTurn: 8,
+  winType: "Combo",
+  format: "EDH",
+  description: "A close one",
+  rated: true,
+  ...overrides,
+});
+
+describe("describeStoredGames", () => {
+  it("describes a stored game in the same terms as a spreadsheet row", () => {
+    const { games } = describeStoredGames([stored()], deckIdentities);
+
+    expect(games).toEqual([gameFrom(row())]);
   });
 
-  const keysFor = (games: ExistingGame[]) =>
-    buildExistingGameKeys(games, deckIdentities).keys;
-
-  it("excludes a game that is already stored", () => {
-    const { games: parsed } = parseSheetRows([row()]);
-
-    expect(selectNewGames(parsed, keysFor([existing()]))).toEqual([]);
-  });
-
-  it("includes every game when the database is empty", () => {
-    const { games: parsed } = parseSheetRows([row()]);
-
-    expect(selectNewGames(parsed, keysFor([]))).toHaveLength(1);
-  });
-
-  it("collapses spreadsheet rows indistinguishable from one another", () => {
-    // The spreadsheet carries no game identifier, so a row duplicated within it
-    // cannot be told apart from a genuine repeat of the same matchup.
-    const { games: parsed } = parseSheetRows([row(), row()]);
-
-    expect(selectNewGames(parsed, keysFor([]))).toHaveLength(1);
-  });
-
-  it("ignores seat ordering when matching against stored games", () => {
-    const { games: parsed } = parseSheetRows([
-      row({ 1: "Carol", 2: "Cromat", 5: "Alice", 6: "Atraxa", 13: "Alice", 14: "Atraxa" }),
-    ]);
-
-    expect(selectNewGames(parsed, keysFor([existing()]))).toEqual([]);
-  });
-
-  it("treats a game whose players are a subset of a stored game as new", () => {
-    // A three-player game must not be mistaken for an already-stored
-    // four-player game on the same date that happens to contain those three
-    // decks and share a description.
-    const { games: parsed } = parseSheetRows([row()]);
-    const storedFourPlayerGame = existing({
-      deckIds: [1, 2, 3, 4],
-      winningDeckIds: [1],
-    });
-
-    expect(selectNewGames(parsed, keysFor([storedFourPlayerGame]))).toHaveLength(1);
-  });
-
-  it("treats a differing description as a different game", () => {
-    const { games: parsed } = parseSheetRows([row({ 19: "a different night" })]);
-
-    expect(selectNewGames(parsed, keysFor([existing()]))).toHaveLength(1);
-  });
-
-  it("treats a differing winner as a different game", () => {
-    const { games: parsed } = parseSheetRows([row({ 13: "Bob", 14: "Bolas" })]);
-
-    expect(selectNewGames(parsed, keysFor([existing()]))).toHaveLength(1);
-  });
-
-  it("treats a differing date as a different game", () => {
-    const { games: parsed } = parseSheetRows([row({ 0: "01/16/24" })]);
-
-    expect(selectNewGames(parsed, keysFor([existing()]))).toHaveLength(1);
-  });
-
-  it("reports a stored game whose decks can no longer be identified", () => {
-    // Such a game cannot be matched against the sheet, so the sheet's copy of
-    // it looks new and would be inserted a second time. Reporting it is the
-    // only warning an admin gets that the two are drifting apart.
-    const { keys, problems } = buildExistingGameKeys(
-      [existing({ deckIds: [1, 2, 99] })],
+  it("cannot describe a stored game whose decks no longer exist", () => {
+    // ELO accumulates through such a game, so it cannot be left in place and
+    // cannot be compared either: the only way back to a known state is to
+    // rebuild from it.
+    const { games, problems } = describeStoredGames(
+      [stored({ deckIds: [1, 2, 99] })],
       deckIdentities,
     );
 
-    expect(keys.size).toBe(0);
+    expect(games).toEqual([null]);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("99");
   });
 
-  it("reports nothing when every stored deck is still identifiable", () => {
-    expect(buildExistingGameKeys([existing()], deckIdentities).problems).toEqual([]);
+  it("cannot vouch for a stored game that was never rated", () => {
+    // Ratings accumulate, so every game after an unrated one was rated as though
+    // it had never been played. It is no more trustworthy than a game the
+    // spreadsheet disagrees with.
+    const { games, problems } = describeStoredGames(
+      [stored({ rated: false })],
+      deckIdentities,
+    );
+
+    expect(games).toEqual([null]);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("rating");
+  });
+
+  it("reports nothing when every stored game is identifiable and rated", () => {
+    expect(describeStoredGames([stored()], deckIdentities).problems).toEqual([]);
   });
 });
 
-describe("eloReplayCutoff", () => {
-  it("is null when there are no games to insert", () => {
-    expect(eloReplayCutoff([], utc(2024, 1, 15))).toBeNull();
+describe("rebuildFromIndex", () => {
+  const sheetGames = (...rows: string[][]) => parseSheetRows(rows).games;
+  const storedGames = (...games: StoredGame[]) =>
+    describeStoredGames(games, deckIdentities).games;
+
+  it("is zero when the database is empty", () => {
+    expect(rebuildFromIndex([], sheetGames(row()))).toBe(0);
   });
 
-  it("is null when the database holds no games yet", () => {
-    const { games: parsed } = parseSheetRows([row()]);
+  it("is the end of the history when the spreadsheet only adds games", () => {
+    // The ordinary nightly case: nothing to discard, three games to append.
+    const index = rebuildFromIndex(
+      storedGames(stored()),
+      sheetGames(row(), row({ 0: "01/16/24" }), row({ 0: "01/17/24" })),
+    );
 
-    expect(eloReplayCutoff(parsed, null)).toBeNull();
+    expect(index).toBe(1);
   });
 
-  it("is null when every new game postdates the stored games", () => {
-    // Scoring each game as it is inserted is correct when nothing already
-    // stored comes after it, and avoids replaying the whole history.
-    const { games: parsed } = parseSheetRows([row({ 0: "02/01/24" })]);
-
-    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toBeNull();
+  it("is the end of both when nothing has changed", () => {
+    expect(rebuildFromIndex(storedGames(stored()), sheetGames(row()))).toBe(1);
   });
 
-  it("is null when a new game shares the most recent stored date", () => {
-    // A game inserted on that date takes a higher id, so it sorts after the
-    // stored one and can still be scored incrementally.
-    const { games: parsed } = parseSheetRows([row({ 0: "01/15/24" })]);
+  it("is the position of an edited row", () => {
+    const index = rebuildFromIndex(
+      storedGames(stored(), stored({ date: utc(2024, 1, 16) }), stored({ date: utc(2024, 1, 17) })),
+      sheetGames(
+        row(),
+        row({ 0: "01/16/24", 13: "Bob", 14: "Bolas" }),
+        row({ 0: "01/17/24" }),
+      ),
+    );
 
-    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toBeNull();
+    expect(index).toBe(1);
   });
 
-  it("is the date of a back-dated game", () => {
-    const { games: parsed } = parseSheetRows([row({ 0: "01/01/24" })]);
+  it("is the position of a row inserted into the middle of the spreadsheet", () => {
+    const index = rebuildFromIndex(
+      storedGames(stored(), stored({ date: utc(2024, 1, 17) })),
+      sheetGames(row(), row({ 0: "01/16/24" }), row({ 0: "01/17/24" })),
+    );
 
-    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 1));
+    expect(index).toBe(1);
   });
 
-  it("is the back-dated game's date when later games are also being inserted", () => {
-    const { games: parsed } = parseSheetRows([
-      row({ 0: "03/01/24" }),
-      row({ 0: "01/01/24" }),
-    ]);
+  it("is the position of a row removed from the spreadsheet", () => {
+    const index = rebuildFromIndex(
+      storedGames(stored(), stored({ date: utc(2024, 1, 16) }), stored({ date: utc(2024, 1, 17) })),
+      sheetGames(row(), row({ 0: "01/17/24" })),
+    );
 
-    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 1));
+    expect(index).toBe(1);
   });
 
-  it("is the earliest back-dated game when several predate the stored games", () => {
-    // Replaying from anywhere later would leave the games between the two
-    // holding ratings computed without the earlier one.
-    const { games: parsed } = parseSheetRows([
-      row({ 0: "01/10/24" }),
-      row({ 0: "01/02/24" }),
-      row({ 0: "01/08/24" }),
-    ]);
+  it("is the end of the spreadsheet when it describes fewer games than are stored", () => {
+    // Rows deleted from the end of the sheet: nothing to import, and the games
+    // past that point are no longer described by the source of truth.
+    const index = rebuildFromIndex(
+      storedGames(stored(), stored({ date: utc(2024, 1, 16) })),
+      sheetGames(row()),
+    );
 
-    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 2));
+    expect(index).toBe(1);
+  });
+
+  it("is the position of a stored game whose decks can no longer be identified", () => {
+    const index = rebuildFromIndex(
+      [...storedGames(stored()), null],
+      sheetGames(row(), row({ 0: "01/16/24" })),
+    );
+
+    expect(index).toBe(1);
+  });
+
+  it("is the position of an unrated stored game the spreadsheet still agrees with", () => {
+    // Agreeing with the spreadsheet is not enough. A game with no rating leaves
+    // every rating after it wrong, so the history has to be rebuilt from it even
+    // though the row it came from has not changed.
+    const index = rebuildFromIndex(
+      storedGames(
+        stored(),
+        stored({ date: utc(2024, 1, 16), rated: false }),
+        stored({ date: utc(2024, 1, 17) }),
+      ),
+      sheetGames(row(), row({ 0: "01/16/24" }), row({ 0: "01/17/24" })),
+    );
+
+    expect(index).toBe(1);
+  });
+
+  it("ignores seat ordering", () => {
+    // Reordering the columns of a row describes the same game.
+    const index = rebuildFromIndex(
+      storedGames(stored({ deckIds: [3, 2, 1] })),
+      sheetGames(row()),
+    );
+
+    expect(index).toBe(1);
+  });
+
+  it("ignores the letter case of win type and format", () => {
+    // Both are matched case-insensitively when stored, so a difference in case
+    // is not a difference in the game.
+    const index = rebuildFromIndex(
+      storedGames(stored({ winType: "combo", format: "edh" })),
+      sheetGames(row()),
+    );
+
+    expect(index).toBe(1);
+  });
+
+  it("notices a changed turn count", () => {
+    // Turn counts, win type and format were invisible to the old matching, so
+    // an edit to one of them silently never reached the database.
+    const index = rebuildFromIndex(
+      storedGames(stored({ numberOfTurns: 99 })),
+      sheetGames(row()),
+    );
+
+    expect(index).toBe(0);
+  });
+
+  it("notices a changed turn a player was knocked out on", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ firstPlayerOutTurn: 99 })), sheetGames(row())),
+    ).toBe(0);
+  });
+
+  it("notices a changed win type", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ winType: "Damage" })), sheetGames(row())),
+    ).toBe(0);
+  });
+
+  it("notices a changed format", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ format: "Brawl" })), sheetGames(row())),
+    ).toBe(0);
+  });
+
+  it("notices a changed description", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ description: "different" })), sheetGames(row())),
+    ).toBe(0);
+  });
+
+  it("notices a changed winner", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ winningDeckIds: [2] })), sheetGames(row())),
+    ).toBe(0);
+  });
+
+  it("notices an extra participant", () => {
+    expect(
+      rebuildFromIndex(storedGames(stored({ deckIds: [1, 2, 3, 4] })), sheetGames(row())),
+    ).toBe(0);
   });
 });

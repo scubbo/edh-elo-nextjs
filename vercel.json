@@ -1,8 +1,9 @@
 {
   "crons": [
-    {
-      "path": "/api/sync/sheet",
-      "schedule": "17 7 * * *"
-    }
+    { "path": "/api/sync/sheet", "schedule": "17 7 * * *" },
+    { "path": "/api/sync/sheet", "schedule": "17 8 * * *" },
+    { "path": "/api/sync/sheet", "schedule": "17 9 * * *" },
+    { "path": "/api/sync/sheet", "schedule": "17 10 * * *" },
+    { "path": "/api/sync/sheet", "schedule": "17 11 * * *" }
   ]
 }

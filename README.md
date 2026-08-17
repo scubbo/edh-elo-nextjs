@@ -58,11 +58,17 @@ The project uses PostgreSQL (see `docker-compose.yml` for local development). Se
 
 ## Importing games from the spreadsheet
 
-Games are recorded in a Google Sheet the app reads but does not own. `GET /api/sync/sheet` brings the database up to date with it, and `vercel.json` schedules that daily. Vercel authenticates the request with `CRON_SECRET` as a bearer token; requests without it are rejected.
+Games are recorded in a Google Sheet the app reads but does not own — there is no way to have it notify us, so the import polls. `GET /api/sync/sheet` brings the database up to date with it, and `vercel.json` schedules that daily. Vercel authenticates the request with `CRON_SECRET` as a bearer token; requests without it are rejected. Admins can also trigger it on demand from `/debug`, which posts to `/api/seed`. Either way the run is recorded at `/debug/imports`, along with any row it could not read.
 
-The import is safe to run repeatedly. Games already stored are recognised by date, participants, winners and description, so a run that fails partway is corrected by the next one. Admins can also trigger it on demand from `/debug`, which posts to `/api/seed`.
+The spreadsheet is the authority, and the stored games should be a leading run of it. The import walks the two in the order the games were played and compares everything the spreadsheet has to say about each. From the first game they disagree on, nothing stored can be trusted: ELO is a running total, so an edited, inserted or deleted row leaves every rating after it wrong, and correcting one game in place would not fix the rest. So the import discards the stored history from that point and reads it afresh. In the ordinary case — the spreadsheet has simply gained rows — there is no disagreement and nothing is discarded.
 
-ELO is a running total, so if the spreadsheet gains a row for a game played *before* something already stored, ratings for every later game are stale. The import detects this and replays the whole history rather than scoring the new game as though it were the most recent.
+A stored game with no rating counts as a disagreement even when its row has not changed, because every later rating was computed as though it had never been played. The same goes for one referencing a deck that no longer exists, which cannot be compared at all. Both are reported at `/debug/imports` as well as rebuilt.
+
+A game stored that the spreadsheet does not describe will be deleted. There is no way to record a game except through the spreadsheet, which is why there is no endpoint for creating one.
+
+Each game is scored as it is stored, rather than in a pass at the end. That makes the database always a *complete* prefix of the spreadsheet, which is what lets the import be interrupted safely: it stops on its own after 45 seconds, well inside the function's 60-second limit, and reports how many games it did not reach. The next run finds those games missing and carries on. `vercel.json` therefore schedules several runs an hour apart, so a rebuild needing more than one invocation finishes the same morning. A run that finds nothing to do costs one spreadsheet read.
+
+Only `Game` and `EloScore` rows are discarded and rebuilt. Players, decks, and the metadata attached to them (deck colours, decklist URLs) are never deleted.
 
 ## Additional Scripts
 

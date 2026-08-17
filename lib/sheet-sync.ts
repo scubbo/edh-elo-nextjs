@@ -14,12 +14,18 @@ export type PlayerDeckNames = {
   deckName: string
 }
 
-/** The subset of a stored Game needed to recognise it in the spreadsheet. */
-export type ExistingGame = {
+/** What comparing a stored game against the spreadsheet needs to know about it. */
+export type StoredGame = {
   date: Date,
   deckIds: number[],
   winningDeckIds: number[],
-  description: string
+  numberOfTurns: number,
+  firstPlayerOutTurn: number,
+  winType: string,
+  format: string,
+  description: string,
+  /** Whether ratings have been computed for the game. */
+  rated: boolean
 }
 
 /**
@@ -77,47 +83,57 @@ export function parseSheetRows(rows: string[][]): SheetParseResult {
 }
 
 /**
- * Identifies a game by what makes it distinct in the spreadsheet: when it was
- * played, who played with which deck, who won, and its description. Seats are
- * sorted so that reordering columns in the sheet does not read as a new game.
+ * Identifies a game by everything the spreadsheet says about it, so that any
+ * edit to a row is a change of identity.
+ *
+ * Seats and winners are sorted because reordering the columns of a row describes
+ * the same game. Win type and format are lowercased because they are matched
+ * case-insensitively when stored, so a difference in case is not a difference in
+ * the game.
  */
-function gameKey(
-  date: Date,
-  participants: PlayerDeckNames[],
-  winners: PlayerDeckNames[],
-  description: string
-): string {
+export function gameFingerprint(game: ParsedGameInfo): string {
   const seat = ({ playerName, deckName }: PlayerDeckNames) =>
     JSON.stringify([playerName, deckName]);
 
   return JSON.stringify([
-    date.toISOString(),
-    participants.map(seat).sort(),
-    winners.map(seat).sort(),
-    description
+    game.date.toISOString(),
+    game.participants.map(seat).sort(),
+    game.winners.map(seat).sort(),
+    game.numberOfTurns,
+    game.firstPlayerOutTurn,
+    game.winType.toLowerCase(),
+    game.format.toLowerCase(),
+    game.description
   ]);
 }
 
-export function parsedGameKey(game: ParsedGameInfo): string {
-  return gameKey(game.date, game.participants, game.winners, game.description);
-}
-
 /**
- * Reduces the stored games to the same keys the spreadsheet rows produce, so
- * the two can be compared directly.
+ * Restates the stored games in the terms a spreadsheet row is read into, so the
+ * two sequences can be compared directly.
  *
- * A game referencing a deck that no longer exists cannot be keyed, and is
- * reported rather than silently dropped: it would otherwise be re-inserted from
- * the sheet as though it were new.
+ * A game the comparison cannot vouch for stands as null rather than being
+ * dropped, so that it counts as a disagreement and the history is rebuilt from
+ * it. Two kinds cannot be vouched for: one referencing a deck that no longer
+ * exists, which cannot be restated at all; and one with no ratings, which every
+ * later rating was computed as though it had never been played.
  */
-export function buildExistingGameKeys(
-  games: ExistingGame[],
+export function describeStoredGames(
+  games: StoredGame[],
   deckIdentities: Map<number, PlayerDeckNames>
-): { keys: Set<string>, problems: string[] } {
-  const keys = new Set<string>();
+): { games: (ParsedGameInfo | null)[], problems: string[] } {
   const problems: string[] = [];
 
-  for (const game of games) {
+  const described = games.map((game) => {
+    const playedOn = game.date.toISOString().slice(0, 10);
+
+    if (!game.rated) {
+      problems.push(
+        `Stored game on ${playedOn} has no rating, so every game after it was ` +
+        `rated as though it had never been played; it will be imported again`
+      );
+      return null;
+    }
+
     const resolve = (deckIds: number[]) =>
       deckIds.map((deckId) => deckIdentities.get(deckId));
     const participants = resolve(game.deckIds);
@@ -129,73 +145,59 @@ export function buildExistingGameKeys(
           .filter((deckId) => !deckIdentities.has(deckId))
       )];
       problems.push(
-        `Stored game on ${game.date.toISOString().slice(0, 10)} references deck ` +
-        `id(s) ${unknown.join(', ')} that no longer exist, so it cannot be ` +
-        `matched against the spreadsheet and may be imported again`
+        `Stored game on ${playedOn} references deck id(s) ${unknown.join(', ')} ` +
+        `that no longer exist, so it cannot be compared with the spreadsheet ` +
+        `and will be imported again`
       );
-      continue;
+      return null;
     }
 
-    keys.add(gameKey(
-      game.date,
-      participants as PlayerDeckNames[],
-      winners as PlayerDeckNames[],
-      game.description
-    ));
-  }
-
-  return { keys, problems };
-}
-
-/**
- * Narrows the spreadsheet down to the games not already stored.
- *
- * Rows that key identically to each other collapse to one game. The
- * spreadsheet holds no game identifier, so a row duplicated within it is
- * indistinguishable from a genuine repeat of the same matchup on the same day,
- * and inventing a second game is the worse of the two mistakes.
- */
-export function selectNewGames(
-  parsedGames: ParsedGameInfo[],
-  existingKeys: Set<string>
-): ParsedGameInfo[] {
-  const seenKeys = new Set(existingKeys);
-
-  return parsedGames.filter((game) => {
-    const key = parsedGameKey(game);
-    if (seenKeys.has(key)) {
-      return false;
-    }
-    seenKeys.add(key);
-    return true;
+    return {
+      date: game.date,
+      participants: participants as PlayerDeckNames[],
+      winners: winners as PlayerDeckNames[],
+      numberOfTurns: game.numberOfTurns,
+      firstPlayerOutTurn: game.firstPlayerOutTurn,
+      winType: game.winType,
+      format: game.format,
+      description: game.description
+    };
   });
+
+  return { games: described, problems };
 }
 
 /**
- * ELO is a running total, so a game can only be scored as it is inserted if it
- * happened after every game already scored. A back-dated row invalidates every
- * rating computed after it, and those games have to be replayed from it
- * onwards.
+ * The position from which the stored games have to be discarded and read afresh
+ * from the spreadsheet.
  *
- * Returns the date to replay from, or null when every new game belongs at the
- * end of the history and can be scored incrementally. A game sharing the most
- * recent stored date needs no replay: it takes a higher id on insertion, so it
- * sorts after the stored game of that date.
+ * Both sequences are in the order the games were played, so the stored games
+ * should be a leading run of the spreadsheet's. From the first position where
+ * they disagree, nothing stored can be trusted: ELO accumulates through every
+ * game, so an edited, inserted or deleted row invalidates every rating after it,
+ * and correcting one game in place would leave the rest wrong.
+ *
+ * Where neither disagrees, the shorter sequence has simply run out. A longer
+ * spreadsheet means games to append — the ordinary case — and a longer history
+ * means games the spreadsheet no longer describes.
  */
-export function eloReplayCutoff(
-  newGames: ParsedGameInfo[],
-  latestStoredGameDate: Date | null
-): Date | null {
-  if (latestStoredGameDate === null) {
-    return null;
+export function rebuildFromIndex(
+  storedGames: (ParsedGameInfo | null)[],
+  sheetGames: ParsedGameInfo[]
+): number {
+  const shared = Math.min(storedGames.length, sheetGames.length);
+
+  for (let index = 0; index < shared; index++) {
+    const stored = storedGames[index];
+    if (
+      stored === null ||
+      gameFingerprint(stored) !== gameFingerprint(sheetGames[index])
+    ) {
+      return index;
+    }
   }
 
-  return newGames.reduce<Date | null>((earliest, game) => {
-    if (game.date.getTime() >= latestStoredGameDate.getTime()) {
-      return earliest;
-    }
-    return earliest === null || game.date < earliest ? game.date : earliest;
-  }, null);
+  return shared;
 }
 
 export function parseGameInfo(sheetRow: string[]): RowOutcome {

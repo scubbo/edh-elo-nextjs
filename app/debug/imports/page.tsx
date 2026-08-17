@@ -47,8 +47,31 @@ export default async function ImportHistoryPage() {
   )
 }
 
+/** What a run did, in the terms an admin checking on it is asking about. */
+function describeRun(run: ImportRunSummary): string {
+  const clauses = [
+    `Read ${run.rowsRead} row(s), imported ${run.gamesInserted} game(s)`
+  ]
+
+  if (run.rebuiltFrom !== null) {
+    clauses.push(
+      `rebuilt ${run.gamesDeleted} game(s) of history from ` +
+      `${run.rebuiltFrom.toISOString().slice(0, 10)}`
+    )
+  }
+  if (run.gamesRemaining > 0) {
+    clauses.push(`${run.gamesRemaining} game(s) left for the next run`)
+  }
+
+  return clauses.join(", ")
+}
+
 function ImportRunCard({ run }: { run: ImportRunSummary }) {
   const failed = run.error !== null
+  // A run only records finishing once it has. An unfinished one is either still
+  // going or was stopped before it could report — the function's time limit, or
+  // a deploy landing mid-run.
+  const unfinished = run.finishedAt === null && !failed
   const skipped = run.skippedRows.length
   const hasProblems = failed || skipped > 0 || run.warnings.length > 0
 
@@ -60,7 +83,7 @@ function ImportRunCard({ run }: { run: ImportRunSummary }) {
             <CardTitle className="flex items-center space-x-2 text-lg">
               {failed ? (
                 <XCircle className="h-5 w-5 text-red-600" />
-              ) : hasProblems ? (
+              ) : unfinished || hasProblems ? (
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
               ) : (
                 <CheckCircle className="h-5 w-5 text-green-600" />
@@ -70,11 +93,9 @@ function ImportRunCard({ run }: { run: ImportRunSummary }) {
             <CardDescription>
               {failed
                 ? "Ended early - nothing after the error was imported"
-                : `Read ${run.rowsRead} row(s), imported ${run.gamesInserted} game(s)` +
-                  (run.eloReplayedFrom
-                    ? `, replayed ELO for ${run.gamesRescored} game(s) from ` +
-                      `${run.eloReplayedFrom.toISOString().slice(0, 10)}`
-                    : "")}
+                : unfinished
+                  ? "Still running, or stopped before it could report what it did"
+                  : describeRun(run)}
             </CardDescription>
           </div>
           <Badge variant="secondary">{run.trigger}</Badge>

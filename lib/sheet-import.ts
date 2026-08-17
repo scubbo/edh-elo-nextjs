@@ -1,17 +1,17 @@
 import { google } from 'googleapis';
 
 import prisma from '@/lib/db/client';
-import { backCalculateEloScoresFrom, calculateAndStoreEloScores } from '@/lib/db/queries';
+import { calculateAndStoreEloScores } from '@/lib/db/queries';
 import {
+  beginImportRun,
   recordFailedImport,
   recordSuccessfulImport,
   type ImportTrigger
 } from '@/lib/import-log';
 import {
-  buildExistingGameKeys,
-  eloReplayCutoff,
+  describeStoredGames,
   parseSheetRows,
-  selectNewGames,
+  rebuildFromIndex,
   type ParsedGameInfo,
   type PlayerDeckNames,
   type SheetRowProblem
@@ -29,40 +29,85 @@ export type SkippedRow = {
 export type SheetImportResult = {
   rowsRead: number,
   gamesParsed: number,
+  /** Stored games discarded because the spreadsheet no longer agreed with them. */
+  gamesDeleted: number,
   gamesInserted: number,
-  gamesAlreadyStored: number,
-  eloReplayedFrom: Date | null,
-  gamesRescored: number,
+  /** Games this run ran out of time to import, left for the next one. */
+  gamesRemaining: number,
+  /** The date of the earliest game rebuilt, when any history was rebuilt. */
+  rebuiltFrom: Date | null,
   skippedRows: SkippedRow[],
   /** Problems with data already stored, found while comparing it to the sheet. */
   warnings: string[]
 }
 
 /**
+ * How long the import will keep importing games before stopping of its own
+ * accord. Comfortably inside the function's own time limit, so that a run with
+ * more games than fit in one invocation ends by choosing to and can report what
+ * it left behind, rather than being killed mid-game with nothing to show.
+ */
+const TIME_BUDGET_MS = 45 * 1000;
+
+/**
  * Brings the database up to date with the spreadsheet, and records what the run
  * did where an admin can read it.
  *
- * Safe to run repeatedly: games already stored are recognised and skipped, so a
- * run that fails partway is corrected by the next one.
+ * Returns null when another run is already in flight, having done nothing.
+ *
+ * Safe to run repeatedly, and safe to be cut short: every game it imports is
+ * fully scored before the next is started, so the database is always a complete
+ * prefix of the spreadsheet and the next run simply carries on from the end of
+ * it.
  */
 export async function importGamesFromSheet(
-  trigger: ImportTrigger
-): Promise<SheetImportResult> {
+  trigger: ImportTrigger,
+  { budgetMs = TIME_BUDGET_MS }: { budgetMs?: number } = {}
+): Promise<SheetImportResult | null> {
+  const runId = await beginImportRun(trigger);
+  if (runId === null) {
+    return null;
+  }
+
   let result: SheetImportResult;
   try {
-    result = await runImport();
+    result = await runImport(Date.now() + budgetMs);
   } catch (error) {
-    await recordFailedImport(trigger, error);
+    await recordFailedImport(runId, error);
     throw error;
   }
 
-  await recordSuccessfulImport(trigger, result);
+  await recordSuccessfulImport(runId, result);
   return result;
 }
 
-async function runImport(): Promise<SheetImportResult> {
+/** One line saying what a run did, for a log line or an API response. */
+export function describeImportResult(result: SheetImportResult): string {
+  const parts = [
+    `imported ${result.gamesInserted} game(s) from ` +
+    `${result.gamesParsed} spreadsheet row(s)`
+  ];
+
+  if (result.rebuiltFrom !== null) {
+    parts.push(
+      `discarded ${result.gamesDeleted} stored game(s) from ` +
+      `${result.rebuiltFrom.toISOString().slice(0, 10)} onwards that the ` +
+      `spreadsheet no longer agreed with`
+    );
+  }
+  if (result.gamesRemaining > 0) {
+    parts.push(`${result.gamesRemaining} game(s) left for the next run`);
+  }
+  if (result.skippedRows.length > 0) {
+    parts.push(`${result.skippedRows.length} row(s) skipped - see /debug/imports`);
+  }
+
+  return parts.join('; ');
+}
+
+async function runImport(deadline: number): Promise<SheetImportResult> {
   const rows = await readGoogleSheet();
-  const { games: parsedGames, problems } = parseSheetRows(rows.map((row) => row.cells));
+  const { games: sheetGames, problems } = parseSheetRows(rows.map((row) => row.cells));
   const skippedRows = problems.map((problem) => locateProblem(problem, rows));
 
   for (const skipped of skippedRows) {
@@ -72,8 +117,23 @@ async function runImport(): Promise<SheetImportResult> {
   }
 
   const [storedGames, decks] = await Promise.all([
+    // In the order the games were played, which is the order the spreadsheet
+    // describes them in and the order their ratings were accumulated in.
     prisma.game.findMany({
-      select: { date: true, deckIds: true, winningDeckIds: true, description: true }
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      select: {
+        id: true,
+        date: true,
+        deckIds: true,
+        winningDeckIds: true,
+        numberOfTurns: true,
+        firstPlayerOutTurn: true,
+        description: true,
+        winType: { select: { name: true } },
+        format: { select: { name: true } },
+        // Only whether the game was rated at all matters, so one is enough.
+        scores: { select: { id: true }, take: 1 }
+      }
     }),
     prisma.deck.findMany({
       select: { id: true, name: true, owner: { select: { name: true } } }
@@ -84,40 +144,70 @@ async function runImport(): Promise<SheetImportResult> {
     decks.map((deck) => [deck.id, { playerName: deck.owner.name, deckName: deck.name }])
   );
 
-  const { keys: existingKeys, problems: warnings } =
-    buildExistingGameKeys(storedGames, deckIdentities);
-  const newGames = selectNewGames(parsedGames, existingKeys);
+  const { games: describedStoredGames, problems: warnings } = describeStoredGames(
+    storedGames.map((game) => ({
+      ...game,
+      winType: game.winType.name,
+      format: game.format.name,
+      rated: game.scores.length > 0
+    })),
+    deckIdentities
+  );
 
   for (const warning of warnings) {
     console.warn(warning);
   }
 
-  const latestStoredGameDate = storedGames.reduce<Date | null>(
-    (latest, game) => (latest === null || game.date > latest ? game.date : latest),
-    null
-  );
-  // A back-dated row invalidates every rating computed after it, so scoring is
-  // deferred to a replay from that game onwards rather than done per game.
-  const replayFrom = eloReplayCutoff(newGames, latestStoredGameDate);
+  // From the first game the spreadsheet no longer agrees with, nothing stored can
+  // be trusted: ratings accumulate through every game, so an edited or deleted
+  // row leaves every rating after it wrong. That history is discarded and read
+  // afresh from the spreadsheet.
+  const divergence = rebuildFromIndex(describedStoredGames, sheetGames);
+  const staleGames = storedGames.slice(divergence);
+  await discardGames(staleGames.map((game) => game.id));
 
-  for (const game of newGames) {
-    await insertGame(game, { scoreImmediately: replayFrom === null });
+  const gamesToImport = sheetGames.slice(divergence);
+  let gamesInserted = 0;
+
+  for (const game of gamesToImport) {
+    if (Date.now() > deadline) {
+      console.log(
+        `Out of time with ${gamesToImport.length - gamesInserted} game(s) still ` +
+        `to import; the next run will carry on from here`
+      );
+      break;
+    }
+    await insertGame(game);
+    gamesInserted++;
   }
-
-  const gamesRescored = replayFrom === null
-    ? 0
-    : await backCalculateEloScoresFrom(replayFrom);
 
   return {
     rowsRead: rows.length,
-    gamesParsed: parsedGames.length,
-    gamesInserted: newGames.length,
-    gamesAlreadyStored: parsedGames.length - newGames.length,
-    eloReplayedFrom: replayFrom,
-    gamesRescored,
+    gamesParsed: sheetGames.length,
+    gamesDeleted: staleGames.length,
+    gamesInserted,
+    gamesRemaining: gamesToImport.length - gamesInserted,
+    rebuiltFrom: staleGames.length > 0 ? staleGames[0].date : null,
     skippedRows,
     warnings
   };
+}
+
+/**
+ * Removes games along with the ratings computed from them. A rating references
+ * the game it came from and the schema does not cascade, so the ratings have to
+ * go first.
+ */
+async function discardGames(gameIds: number[]): Promise<void> {
+  if (gameIds.length === 0) {
+    return;
+  }
+
+  await prisma.eloScore.deleteMany({ where: { gameId: { in: gameIds } } });
+  await prisma.game.deleteMany({ where: { id: { in: gameIds } } });
+  console.log(
+    `Discarded ${gameIds.length} game(s) the spreadsheet no longer agrees with`
+  );
 }
 
 /**
@@ -131,10 +221,15 @@ function locateProblem(problem: SheetRowProblem, rows: SheetRow[]): SkippedRow {
   return { sheetName, rowNumber, reason: problem.reason, cells: problem.cells };
 }
 
-async function insertGame(
-  parsedGameInfo: ParsedGameInfo,
-  { scoreImmediately }: { scoreImmediately: boolean }
-) {
+/**
+ * Stores one game and the ratings it produces.
+ *
+ * Scoring happens here rather than in a pass over all the imported games so that
+ * every game is complete the moment it is stored: a run cut short leaves no
+ * half-imported game behind, and a deck appears in the UI as soon as its first
+ * game does.
+ */
+async function insertGame(parsedGameInfo: ParsedGameInfo) {
   const processedParticipants = await Promise.all(
     parsedGameInfo.participants.map(async (participant) => {
       const player = await findOrCreatePlayer(participant.playerName);
@@ -176,10 +271,7 @@ async function insertGame(
     }
   });
 
-  // Decks only appear in the UI once they have an ELO score
-  if (scoreImmediately) {
-    await calculateAndStoreEloScores(newGame.id);
-  }
+  await calculateAndStoreEloScores(newGame.id);
 
   console.log(`Imported game ${newGame.id} for date ${newGame.date.toISOString()}, deckIds: ${newGame.deckIds.join(', ')}, winningDeckIds: ${newGame.winningDeckIds.join(', ')}, description: ${newGame.description}`);
 }
