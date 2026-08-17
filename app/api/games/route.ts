@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isAdmin } from '@/lib/auth'
 import { getGames, addGame } from '@/lib/db/queries'
 
 export async function GET(request: Request) {
@@ -28,6 +29,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Check admin authorization
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 403 }
+      )
+    }
+
     const body = await request.json()
     const {
       date,

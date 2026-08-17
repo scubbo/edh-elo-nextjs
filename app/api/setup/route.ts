@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
+import { isAdmin } from '@/lib/auth';
 import { prisma } from '@/lib/db/client';
 
 export async function POST() {
   try {
+    // Check admin authorization
+    if (!(await isAdmin())) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Admin access required' },
+        { status: 403 }
+      );
+    }
+
     console.log('Setting up basic win types and formats...');
 
     // Create win types
