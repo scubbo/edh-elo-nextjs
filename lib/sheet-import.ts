@@ -1,10 +1,10 @@
 import { google } from 'googleapis';
 
 import prisma from '@/lib/db/client';
-import { backCalculateAllEloScores, calculateAndStoreEloScores } from '@/lib/db/queries';
+import { backCalculateEloScoresFrom, calculateAndStoreEloScores } from '@/lib/db/queries';
 import {
   buildExistingGameKeys,
-  needsEloBackCalculation,
+  eloReplayCutoff,
   parseSheetRows,
   selectNewGames,
   type ParsedGameInfo,
@@ -16,7 +16,8 @@ export type SheetImportResult = {
   gamesParsed: number,
   gamesInserted: number,
   gamesAlreadyStored: number,
-  eloBackCalculated: boolean
+  eloReplayedFrom: Date | null,
+  gamesRescored: number
 }
 
 /**
@@ -52,23 +53,24 @@ export async function importGamesFromSheet(): Promise<SheetImportResult> {
     null
   );
   // A back-dated row invalidates every rating computed after it, so scoring is
-  // deferred to a single replay of the whole history rather than done per game.
-  const eloBackCalculated = needsEloBackCalculation(newGames, latestStoredGameDate);
+  // deferred to a replay from that game onwards rather than done per game.
+  const replayFrom = eloReplayCutoff(newGames, latestStoredGameDate);
 
   for (const game of newGames) {
-    await insertGame(game, { scoreImmediately: !eloBackCalculated });
+    await insertGame(game, { scoreImmediately: replayFrom === null });
   }
 
-  if (eloBackCalculated) {
-    await backCalculateAllEloScores();
-  }
+  const gamesRescored = replayFrom === null
+    ? 0
+    : await backCalculateEloScoresFrom(replayFrom);
 
   return {
     rowsRead: rows.length,
     gamesParsed: parsedGames.length,
     gamesInserted: newGames.length,
     gamesAlreadyStored: parsedGames.length - newGames.length,
-    eloBackCalculated
+    eloReplayedFrom: replayFrom,
+    gamesRescored
   };
 }
 

@@ -362,24 +362,41 @@ export async function getDecksWithStats(): Promise<Array<{
   return deckStats.sort((a, b) => b.elo - a.elo);
 }
 
-export async function backCalculateAllEloScores(): Promise<void> {
-  console.log('Starting ELO back-calculation for all games...');
-  
-  // Get all games in chronological order
+/**
+ * Recalculates ELO for every game played on or after `from`, leaving earlier
+ * ratings untouched. Each replayed game reads the ratings its participants held
+ * beforehand, so the surviving scores from before the cutoff carry forward.
+ *
+ * Games are ordered by id within a date because ELO depends on the sequence,
+ * and the sheet gives no finer signal than the day: id preserves the order the
+ * games were originally read in, making a replay reproduce the same ratings.
+ */
+export async function backCalculateEloScoresFrom(from: Date): Promise<number> {
+  console.log(`Starting ELO back-calculation from ${from.toISOString()}...`);
+
   const games = await prisma.game.findMany({
-    orderBy: { date: 'asc' }
+    where: { date: { gte: from } },
+    orderBy: [
+      { date: 'asc' },
+      { id: 'asc' }
+    ]
   });
 
-  // Clear existing ELO scores
-  await prisma.eloScore.deleteMany({});
+  await prisma.eloScore.deleteMany({
+    where: { game: { date: { gte: from } } }
+  });
 
-  // Recalculate ELO scores for each game
   for (const game of games) {
     await calculateAndStoreEloScores(game.id);
     console.log(`Processed game ${game.id} from ${game.date.toISOString()}`);
   }
 
   console.log(`Completed ELO back-calculation for ${games.length} games`);
+  return games.length;
+}
+
+export async function backCalculateAllEloScores(): Promise<void> {
+  await backCalculateEloScoresFrom(new Date(0));
 }
 
 export async function getDeckDetails(deckId: number) {

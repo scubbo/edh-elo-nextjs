@@ -136,20 +136,30 @@ export function selectNewGames(
 }
 
 /**
- * ELO is a running total, so a game can only be scored incrementally if it
+ * ELO is a running total, so a game can only be scored as it is inserted if it
  * happened after every game already scored. A back-dated row invalidates every
- * rating computed after it, and the whole history has to be replayed.
+ * rating computed after it, and those games have to be replayed from it
+ * onwards.
+ *
+ * Returns the date to replay from, or null when every new game belongs at the
+ * end of the history and can be scored incrementally. A game sharing the most
+ * recent stored date needs no replay: it takes a higher id on insertion, so it
+ * sorts after the stored game of that date.
  */
-export function needsEloBackCalculation(
+export function eloReplayCutoff(
   newGames: ParsedGameInfo[],
   latestStoredGameDate: Date | null
-): boolean {
+): Date | null {
   if (latestStoredGameDate === null) {
-    return false;
+    return null;
   }
-  return newGames.some(
-    (game) => game.date.getTime() < latestStoredGameDate.getTime()
-  );
+
+  return newGames.reduce<Date | null>((earliest, game) => {
+    if (game.date.getTime() >= latestStoredGameDate.getTime()) {
+      return earliest;
+    }
+    return earliest === null || game.date < earliest ? game.date : earliest;
+  }, null);
 }
 
 export function parseGameInfo(sheetRow: string[]): ParsedGameInfo | null {

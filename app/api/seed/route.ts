@@ -21,7 +21,10 @@ export async function POST() {
         return NextResponse.json({
             message: `Imported ${result.gamesInserted} new game(s) from ${result.gamesParsed} spreadsheet row(s); ` +
                 `${result.gamesAlreadyStored} already stored` +
-                (result.eloBackCalculated ? '. ELO recalculated for all games' : ''),
+                (result.eloReplayedFrom
+                    ? `. ELO recalculated for ${result.gamesRescored} game(s) from ` +
+                      `${result.eloReplayedFrom.toISOString()} onwards`
+                    : ''),
             ...result
         });
     } catch (error) {

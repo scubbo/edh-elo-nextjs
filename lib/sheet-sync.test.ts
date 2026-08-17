@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildExistingGameKeys,
-  needsEloBackCalculation,
+  eloReplayCutoff,
   parseGameInfo,
   parseSheetRows,
   selectNewGames,
@@ -336,35 +336,57 @@ describe("selectNewGames", () => {
   });
 });
 
-describe("needsEloBackCalculation", () => {
-  it("is false when there are no games to insert", () => {
-    expect(needsEloBackCalculation([], utc(2024, 1, 15))).toBe(false);
+describe("eloReplayCutoff", () => {
+  it("is null when there are no games to insert", () => {
+    expect(eloReplayCutoff([], utc(2024, 1, 15))).toBeNull();
   });
 
-  it("is false when the database holds no games yet", () => {
+  it("is null when the database holds no games yet", () => {
     const parsed = parseSheetRows([row()]);
 
-    expect(needsEloBackCalculation(parsed, null)).toBe(false);
+    expect(eloReplayCutoff(parsed, null)).toBeNull();
   });
 
-  it("is false when every new game postdates the stored games", () => {
+  it("is null when every new game postdates the stored games", () => {
+    // Scoring each game as it is inserted is correct when nothing already
+    // stored comes after it, and avoids replaying the whole history.
     const parsed = parseSheetRows([row({ 0: "02/01/24" })]);
 
-    expect(needsEloBackCalculation(parsed, utc(2024, 1, 15))).toBe(false);
+    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toBeNull();
   });
 
-  it("is true when a new game predates the most recent stored game", () => {
+  it("is null when a new game shares the most recent stored date", () => {
+    // A game inserted on that date takes a higher id, so it sorts after the
+    // stored one and can still be scored incrementally.
+    const parsed = parseSheetRows([row({ 0: "01/15/24" })]);
+
+    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toBeNull();
+  });
+
+  it("is the date of a back-dated game", () => {
     const parsed = parseSheetRows([row({ 0: "01/01/24" })]);
 
-    expect(needsEloBackCalculation(parsed, utc(2024, 1, 15))).toBe(true);
+    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 1));
   });
 
-  it("is true when only one of several new games is back-dated", () => {
+  it("is the back-dated game's date when later games are also being inserted", () => {
     const parsed = parseSheetRows([
       row({ 0: "03/01/24" }),
       row({ 0: "01/01/24" }),
     ]);
 
-    expect(needsEloBackCalculation(parsed, utc(2024, 1, 15))).toBe(true);
+    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 1));
+  });
+
+  it("is the earliest back-dated game when several predate the stored games", () => {
+    // Replaying from anywhere later would leave the games between the two
+    // holding ratings computed without the earlier one.
+    const parsed = parseSheetRows([
+      row({ 0: "01/10/24" }),
+      row({ 0: "01/02/24" }),
+      row({ 0: "01/08/24" }),
+    ]);
+
+    expect(eloReplayCutoff(parsed, utc(2024, 1, 15))).toEqual(utc(2024, 1, 2));
   });
 });
