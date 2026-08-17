@@ -43,17 +43,6 @@ export interface Game {
   }[];
 }
 
-export type CreateGameInput = {
-  date: Date;
-  deckIds: number[];
-  winningDeckIds: number[];
-  numberOfTurns: number;
-  firstPlayerOutTurn: number;
-  winTypeId: number;
-  formatId: number;
-  description: string;
-}
-
 export async function getAllPlayers(): Promise<Player[]> {
   const players = await prisma.player.findMany({
     include: {
@@ -132,49 +121,6 @@ export async function getGames(date?: Date): Promise<Game[]> {
   });
 
   return games;
-}
-
-export async function addGame(input: CreateGameInput): Promise<Game> {
-  const game = await prisma.game.create({
-    data: {
-      date: input.date,
-      deckIds: input.deckIds,
-      winningDeckIds: input.winningDeckIds,
-      numberOfTurns: input.numberOfTurns,
-      firstPlayerOutTurn: input.firstPlayerOutTurn,
-      winTypeId: input.winTypeId,
-      formatId: input.formatId,
-      description: input.description
-    },
-    include: {
-      winType: true,
-      format: true
-    }
-  });
-
-  // Calculate and store ELO scores for this game
-  await calculateAndStoreEloScores(game.id);
-
-  // Return the game with updated scores
-  return await prisma.game.findUnique({
-    where: { id: game.id },
-    include: {
-      winType: true,
-      format: true,
-      scores: {
-        include: {
-          deck: {
-            include: {
-              owner: true
-            }
-          }
-        },
-        orderBy: {
-          date: 'desc'
-        }
-      }
-    }
-  }) as Game;
 }
 
 // ELO Calculation Functions

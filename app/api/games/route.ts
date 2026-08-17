@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isAdmin } from '@/lib/auth'
-import { getGames, addGame } from '@/lib/db/queries'
+import { getGames } from '@/lib/db/queries'
 
 export async function GET(request: Request) {
   try {
@@ -26,81 +25,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch games' }, { status: 500 })
   }
 }
-
-export async function POST(request: Request) {
-  try {
-    // Check admin authorization
-    if (!(await isAdmin())) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Admin access required' },
-        { status: 403 }
-      )
-    }
-
-    const body = await request.json()
-    const {
-      date,
-      deckIds,
-      winningDeckIds,
-      numberOfTurns,
-      firstPlayerOutTurn,
-      winTypeId,
-      formatId,
-      description
-    } = body
-
-    // Validate required fields
-    if (!date || !deckIds || !winningDeckIds || !numberOfTurns || 
-        !firstPlayerOutTurn || !winTypeId || !formatId || !description) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
-
-    // Validate date format
-    const gameDate = new Date(date)
-    if (isNaN(gameDate.getTime())) {
-      return NextResponse.json(
-        { error: 'Invalid date format. Please use ISO format' },
-        { status: 400 }
-      )
-    }
-
-    // Validate arrays
-    if (!Array.isArray(deckIds) || !Array.isArray(winningDeckIds)) {
-      return NextResponse.json(
-        { error: 'deckIds and winningDeckIds must be arrays' },
-        { status: 400 }
-      )
-    }
-
-    // Validate that all winning decks are in the participants list
-    const invalidWinners = winningDeckIds.filter(id => !deckIds.includes(id))
-    if (invalidWinners.length > 0) {
-      return NextResponse.json(
-        { error: 'All winning deck IDs must be in the participants list' },
-        { status: 400 }
-      )
-    }
-
-    const game = await addGame({
-      date: gameDate,
-      deckIds,
-      winningDeckIds,
-      numberOfTurns,
-      firstPlayerOutTurn,
-      winTypeId,
-      formatId,
-      description
-    })
-
-    return NextResponse.json(game)
-  } catch (error) {
-    console.error('Error creating game:', error)
-    return NextResponse.json(
-      { error: 'Failed to create game' },
-      { status: 500 }
-    )
-  }
-} 
