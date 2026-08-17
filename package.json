@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "prisma migrate deploy && next build",
+    "build": "sh scripts/apply-migrations.sh && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",

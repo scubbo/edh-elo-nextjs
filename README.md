@@ -80,3 +80,11 @@ Only `Game` and `EloScore` rows are discarded and rebuilt. Players, decks, and t
 ## Deployment
 
 The app targets Vercel, but any Next.js hosting platform with Node.js 18+ and Postgres support will work. Ensure production deployments set the same environment variables described above.
+
+### Migrations
+
+`npm run build` applies pending migrations, but only when `VERCEL_ENV` is `production` — see `scripts/apply-migrations.sh`. Every environment shares one `DATABASE_URL`, so there is no separate database behind a preview deployment, and a preview build applying migrations would alter production before the pull request the migration arrived in had been reviewed.
+
+So migrations land on merge, not on push. The consequence to expect: a preview of a branch that adds a migration runs against a database that does not have it yet, and whatever depends on the new column will error *on that preview*. That is the trade — a broken preview page is recoverable, an unreviewed migration on production is not.
+
+Preview deployments still read and write production data at runtime. Giving preview its own database (a Neon branch, with a `DATABASE_URL` scoped to Preview only) is what would fix that, and would make the migration gate unnecessary.
